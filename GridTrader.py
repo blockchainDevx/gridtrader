@@ -667,7 +667,6 @@ class GridTrader():
             id=value['id']
             self.log(f'程序结束,将挂单{id}撤掉')
             self.cancel_order(id,self.api_symbol)
-            
         del self.order_dict
 
         #市价卖出所有持仓
@@ -992,12 +991,8 @@ class GridTrader():
         #将所有挂单清掉
         for  _,value in self.order_dict.items():
             id=value['id']
-            try:
-                _ = self.exchange.cancel_order(id,self.api_symbol)
-                self.log(f'程序结束,将挂单{id}撤掉')
-            except Exception as e:
-                strr = self.err_paser(e)
-                self.log(f'撤单失败,单号为{id}')
+            self.cancel_order(id)
+            self.log(f'程序结束,将挂单{id}撤掉')
         del self.order_dict
         
         #将所持有手数全在止损价挂卖单
