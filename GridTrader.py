@@ -734,6 +734,8 @@ class GridTrader():
         index=0
         for index in range(self.current_gridno+1, len(self.grid_list)):
             qty+= self.grid_list[index]['buyqty']
+
+        qty=GridTrader.cut(qty,self.api_qtyreserve)
         
         self.log(f'当前价格:{last},所在网格:{self.current_gridno},需要开单手数:{qty}')
         
@@ -749,16 +751,21 @@ class GridTrader():
             #深度足够
             order=self.create_order(self.type[0],self.side[0],qty)
             if order!=None:
+                self.log(f'深度足够,开市价进场,委托为:{order}')
                 while True:
                     order_ret,flag=self.check_order_finish(order['id'])
                     if order_ret!=None and flag==True:
                         return True
                     else:
+                        id=order['id']
+                        self.log(f'开仓单{id}未成交,{order_ret},{flag}')
+                        time.sleep(1)
                         continue
             else:
                 return False
         else:
             #深度不够,当前价挂单
+            self.log(f'深度不够,开限价进场')
             order=self.create_order(self.type[1],self.side[0],qty,last)
             if order!=None:
                 while True:
@@ -766,6 +773,9 @@ class GridTrader():
                     if order!=None and flag==True:
                         return True
                     else:
+                        id=order['id']
+                        self.log(f'开仓单{id}未成交,{order},{flag}')
+                        time.sleep(1)
                         continue
             return False
                     
@@ -830,6 +840,8 @@ class GridTrader():
     def check_order_finish(self,id):
         try:
             order=self.exchange.fetch_order(id,self.api_symbol)
+            if order==None:
+                return 
             if order['status']=='closed':
                 #记录持有手数
                 if order['side'] ==self.side[0]:
@@ -839,21 +851,28 @@ class GridTrader():
 
                 #开单手数减去手续费扣得币
                 qty=float(order['filled'])
-                fee = float(order['fee']['cost'])
+                fee=0
+                if order['fee']!=None and order['fee']['cost']!=None:
+                    fee = float(order['fee']['cost'])
                 side=order['side']
                 price=float(order['price'])
-                currency=order['fee']['currency']
+                currency=''
+                if order['fee']!=None and order['fee']['currency']!=None:
+                    currency=order['fee']['currency']
                 id=order['id']
                 type=order['type']
                 self.log_order(f'closed,success,{self.api_symbol},{id},{type},{side},{price},{qty},{currency},{fee}')
                 return order,True
             return order,False
-        except:
+        except Exception as e:
+            emsg=self.err_paser(e)
+            self.log(f'委托查询错误,错误信息为:{emsg}')
             return None,False
 
 
     
     def create_grid(self):
+        self.log(f'开启网格')
         has_qty=self.has_qty
         for index in range(len(self.grid_list)):
             if index <= self.current_gridno:
@@ -863,7 +882,7 @@ class GridTrader():
                 order = self.create_order(self.type[1],self.side[0],qty,price)
                 if order!=None:
                     self.order_dict[f'{price}']=dict([('id',order['id']),('side',self.side[0]),('qty',qty)])
-                    self.log(f'网格创建成功,网格编号为{index},网格下沿价格为{price},挂单手数{qty}')
+                    self.log(f'网格创建成功,网格编号为{index},方向为{self.side[0]},网格下沿价格为{price},挂单手数{qty}')
             
             elif index >self.current_gridno:
                 #比当前价所在的网格高的开卖单
@@ -1028,10 +1047,11 @@ class GridTrader():
                 price_list.append(order['price'])
             
             for price in list(self.order_dict):
-                grid_data=self.get_grid_by_price(float(price))
+                f_price=float(price)
+                grid_data=self.get_grid_by_price(f_price)
                 if grid_data==None:
                     continue
-                if price not in price_list:
+                if f_price not in price_list:
                     #委托列表里没找到这个档位的委托,表示这个价位挂单已成交
                     #将委托表里的单子处理掉
                     order=self.order_dict[price]
@@ -1042,13 +1062,13 @@ class GridTrader():
                         continue
 
                     #接着挂单
-                    if price >last:
+                    if f_price >last:
                         #网格价格比当前价高,挂卖单
-                        order=self.create_order(self.type[1],self.side[1],grid_data['sellqty'],price)
+                        order=self.create_order(self.type[1],self.side[1],grid_data['sellqty'],f_price)
                         if order !=None:
                             self.order_dict[f'{price}']=dict([('id',order['id']),('side',self.side[1]),('qty',grid_data['sellqty'])])
-                    if price<last:
-                        order=self.create_order(self.type[1],self.side[0],grid_data['buyqty'],price)
+                    if f_price<last:
+                        order=self.create_order(self.type[1],self.side[0],grid_data['buyqty'],f_price)
                         if order !=None:
                             self.order_dict[f'{price}']=dict([('id',order['id']),('side',self.side[1]),('qty',grid_data['buyqty'])])
         except Exception as e:
@@ -1080,7 +1100,12 @@ class GridTrader():
     #         time.sleep(0.2)
 
     def buy_trade(self,info):
-        fill=float(info['filled']-float(info['fee']['cost']))
+        fill=0.0
+        if info['fee']==None:
+            fill=info['filled']
+        else:
+            if info['fee']['cost'] !=None:
+                fill=float(info['filled']-float(info['fee']['cost']))
         self.has_qty=self.has_qty+fill
         id=info['id']
         price=info['price']
@@ -1120,6 +1145,8 @@ class GridTrader():
         #基础配置
         self.gl_logfile=cfg.get('global','logfile')
 
+        self.gl_orderfile=cfg.get('global','orderfile')
+
         #mysql配置
         # self.sql_database=cfg.get('mysql','database')
         # self.sql_table=cfg.get('mysql','table')
@@ -1146,8 +1173,8 @@ class GridTrader():
             raise Exception('交易品种不能为空')
 
         self.api_passwd=cfg.get('api','passwd')
-        if len(self.api_passwd)==0:
-            raise Exception('密码不能为空')
+        # if len(self.api_passwd)==0:
+        #     raise Exception('密码不能为空')
 
         self.api_timeinterval=cfg.getfloat('api','time_interval')
         if self.api_timeinterval<=0:
@@ -1213,7 +1240,7 @@ class GridTrader():
     def log_order(self,msg):
         timestamp=datetime.now(pytz.timezone('Asia/Shanghai')).strftime("%b %d %Y %H:%M:%S, ")
         try:
-            f=open("order.csv",'a')
+            f=open(f"{self.gl_orderfile}",'a')
             f.write(timestamp+msg+"\n")
             f.close()
         except:
