@@ -919,7 +919,7 @@ class GridTrader():
             try:
                 last=self.exchange.fetch_ticker(self.api_symbol)['last']
             except:
-                pass
+                continue
 
             #检测委托表
             self.update_all_orders2(last)
@@ -1140,7 +1140,7 @@ class GridTrader():
         except Exception as e:
             estr=str(e)
             self.log(f'配置文件未找到,{estr}')
-            pass
+            return
 
         #基础配置
         self.gl_logfile=cfg.get('global','logfile')
@@ -1258,15 +1258,21 @@ class GridTrader():
     def okex_err_paser(e):
         strr=str(e)
         strr1=strr[strr.find('{'):]
-        json_data=json.loads(strr1)
-        return json_data['data'][0]['sMsg']
+        try:
+            json_data=json.loads(strr1)
+            return json_data['data'][0]['sMsg']
+        except:
+            return strr
     
     @staticmethod
     def ftx_err_paser(e):
         strr=str(e)
         strr1=strr[strr.find('{'):]
-        str_json=json.loads(strr1)
-        return str_json['error']
+        try:
+            str_json=json.loads(strr1)
+            return str_json['error']
+        except:
+            return strr
     
     @staticmethod
     def cut(f,n):
