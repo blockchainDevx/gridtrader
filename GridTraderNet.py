@@ -854,6 +854,13 @@ class GridTraderNet():
             'PriceReserve':self.api_pricereserve,
             'QtyReserve':self.api_qtyreserve})
 
+        for i in  range(len(self.grid_list)):
+            lowprice= self.grid_list[i]['LowPrice']
+            upprice= self.grid_list[i]['UpPrice']
+            buyqty= self.grid_list[i]['BuyQty']
+            sellqty= self.grid_list[i]['SellQty']
+            self.log(f'网格编号{i+1} 下沿价格:{lowprice},上沿价格:{upprice},买入手数:{buyqty},卖出手数:{sellqty}')
+
         ticker={}
         try:
             ticker=self.exchange.fetch_ticker(self.api_symbol)
@@ -868,6 +875,7 @@ class GridTraderNet():
         #根据最新价计算要入场手数
         last=ticker['last']
         qty=self.calc_open_qty(last)
+        self.log(f'需要买入手数为{qty}')
 
         #进场
         flag,errmsg=self.open_order(last,qty)
@@ -956,7 +964,7 @@ class GridTraderNet():
                     item['Id']=order['id']
                     item['Side']=self.side[0]
                     id=order['id']
-                    self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id}')
+                    self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:buy,手数:{qty},价格:{price}')
                 else:
                     self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单失败,原因为:{errmsg}')
             elif last <= item['LowPrice']: #当前价比此网格的下沿价低,以网格的上沿价格挂卖单,卖出数量为网格卖出数
@@ -970,7 +978,7 @@ class GridTraderNet():
                     item['Id']=order['id']
                     item['Side']=self.side[1]
                     id=order['id']
-                    self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id}')
+                    self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:sell,手数:{qty},价格:{price}')
                 else:
                     self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单失败,原因为:{errmsg}')
 
@@ -1010,21 +1018,25 @@ class GridTraderNet():
             for item in self.grid_list:
                 if len(item['Id']) ==0:
                     if last >= item['UpPrice']:  #此时最新价大于网格上沿价格,挂买单
-                        order,_,errmsg=self.create_order(self.type[1],self.side[0],item['BuyQty'],item['LowPrice'])
+                        qty=item['BuyQty']
+                        price=item['LowPrice']
+                        order,_,errmsg=self.create_order(self.type[1],self.side[0],qty,price)
                         if order!=None:
                             item['Id']=order['id']
                             item['Side']=self.side[0]
                             id=order['id']
-                            self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id}')
+                            self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:buy,手数:{qty},价格:{price}')
                         else:
                             self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单失败,原因为:{errmsg}')
                     elif last < item['LowPrice']:   #此时最新价小于网格下沿价格,挂卖单
+                        qty=item['SellQty']
+                        price=item['UpPrice']
                         order,_,errmsg = self.create_order(self.type[1],self.side[1],item['SellQty'],item['UpPrice'])
                         if order != None:
                             item['Id']=order['id']
                             item['Side']=self.side[1]
                             id=order['id']
-                            self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id}')
+                            self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:sell,手数:{qty},价格:{price}')
                         else:
                             self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单失败,原因为:{errmsg}')
                     continue
@@ -1040,21 +1052,25 @@ class GridTraderNet():
                             self.sell_num=self.sell_num+1
                             self.lock.release()
                     if last >= item['UpPrice']:  #此时最新价大于网格上沿价格,挂买单
-                        order,_,errmsg=self.create_order(self.type[1],self.side[0],item['BuyQty'],item['LowPrice'])
+                        qty=item['BuyQty']
+                        price=item['LowPrice']
+                        order,_,errmsg=self.create_order(self.type[1],self.side[0],qty,price)
                         if order!=None:
                             item['Id']=order['id']
                             item['Side']=self.side[0]
                             id=order['id']
-                            self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id}')
+                            self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:buy,手数:{qty},价格:{price}')
                         else:
                             self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单失败,原因为:{errmsg}')
                     elif last < item['LowPrice']:   #此时最新价小于网格下沿价格,挂卖单
-                        order,_,errmsg = self.create_order(self.type[1],self.side[1],item['SellQty'],item['UpPrice'])
+                        qty=item['SellQty']
+                        price=item['UpPrice']
+                        order,_,errmsg = self.create_order(self.type[1],self.side[1],qty,price)
                         if order != None:
                             item['Id']=order['id']
                             item['Side']=self.side[1]
                             id=order['id']
-                            self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id}')
+                            self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:sell,手数:{qty},价格:{price}')
                         else:
                             self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单失败,原因为:{errmsg}')
                 else: #找到了不做任何操作
