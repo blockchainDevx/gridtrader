@@ -55,12 +55,13 @@ class WebsocketServer:
     _instance_lock=threading.Lock()
     def __init__(self,port):
         self.port=port
+        self.grid_data={}
         #网格对象表,key=uuid,value=网格数据
-        self.grid_dic={}
-        #网格配置表,key=uuid,value=配置数据
-        self.conf_dic={}
-        #线程表,key=uuid,value=线程对象
-        self.thread_dict={}
+        # self.grid_dic={}
+        # #网格配置表,key=uuid,value=配置数据
+        # self.conf_dic={}
+        # #线程表,key=uuid,value=线程对象
+        # self.thread_dict={}
 
     def __new__(cls,*args,**argv):
         if not hasattr(WebsocketServer, "_instance"):
@@ -131,46 +132,68 @@ class WebsocketServer:
             if flag==True:
                 errid=0
                 errmsg='ok'
-                
-                self.conf_dic[f'{uid}']=data
+                self.grid_data[f'{uid}']={}
+                self.grid_data[f'{uid}'].update({'config':data})
             return WebsocketServer.obj_to_json('calc',errid,errmsg,data1,uid)
 
     #开启网格
     def start_grid(self,id ,websocket):
-            grid=self.conf_dic.get(f'{id}')
-            if grid !=None:
-                #根据id找到网格
-                trader=GridTraderNet()
-                trader.set_websocket(websocket)
-                #print(str(grid))
-                flag,errmsg=trader.read_config_by_obj(grid)
-                if flag ==False:
-                    return False, errmsg
-                thread=threading.Thread(target=trader.start)
-                thread.start()
-                self.thread_dict[f'{id}']=thread
-                self.grid_dic[f'{id}']=trader
-                return True,'ok'
-            return False,'没找到网格数据'
+            
+            grid=self.grid_data.get(f'{id}')
+            if grid== None:
+                return False,'没找到网格数据'
+
+            thread= grid.get('thread')
+            if thread!=None:
+                return False,'网格已经开启'
+
+            trader= grid.get('trader')
+            if trader!=None:
+                return False,'网格已经开启'
+
+            conf=grid.get('config')
+            if conf==None:
+                return False,'没找到网格数据'
+
+            trader=GridTraderNet()
+            trader.set_websocket(websocket)
+            #print(str(grid))
+            flag,errmsg=trader.read_config_by_obj(conf)
+            if flag ==False:
+                return False, errmsg
+            flag,errmsg=trader.start()
+            if flag==False:
+                return False,errmsg
+            thread=threading.Thread(target=trader.order_monitor)
+            thread.start()
+            self.grid_data[f'{id}']['thread']=thread
+            self.grid_data[f'{id}']['trader']=trader
+            return True,'ok'
 
     def stop_grid(self,id):
-            grid=self.grid_dic.get(f'{id}')
+            grid=self.grid_data.get(f'{id}')
             if grid!=None:
-                grid.stop()
-            thread= self.thread_dict.get(f'{id}')
-            if thread!=None:
-                del self.grid_dic[f'{id}']
+                trader= grid.get('trader')
+                if trader!=None:
+                    trader.stop()
+            self.grid_data[f'{id}']['thread']=None
+            self.grid_data[f'{id}']['trader']=None
     
     def delete_grid(self,id):
-        grid=self.grid_dic.get(f'{id}')
+        grid=self.grid_data.get(f'{id}')
         if grid!=None:
-            grid.stop()
+            trader = grid.get('trader')
+            if trader!=None:
+                trader.stop()
+            del self.grid_data[f'{id}']
 
     def query_grid(self,id):
-        grid=self.grid_dic.get(f'{id}')
+        grid=self.grid_data.get(f'{id}')
         if grid!=None:
-            buy,sell=grid.query()
-            return True,buy,sell
+            trader= grid.get('trader')
+            if trader!=None:
+                buy,sell=trader.query()
+                return True,buy,sell
         return False,None,None
             
 
