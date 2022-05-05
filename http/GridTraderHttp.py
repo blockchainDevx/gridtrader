@@ -1018,7 +1018,7 @@ class GridTraderHttp():
             ]))
         return grid_list_meta
 
-    def start(self):
+    def start(self,factor=1):
         #交易所连接
         if self.api_exchange=='okex':
             self.exchange=ccxt.okex({
@@ -1028,11 +1028,14 @@ class GridTraderHttp():
                 'password':self.api_passwd,
             })
         elif self.api_exchange =='ftx':
-            self.exchange=ccxt.ftx({
+            data={
                 'enableRateLimit': True,
                 'apiKey': self.api_apikey,
                 'secret':self.api_secret,
-            })
+            }
+            if len(self.api_subaccount) >0:
+                data['headers']={'FTX-SUBACCOUNT': f'{self.api_subaccount}'}
+            self.exchange=ccxt.ftx(data)
 
         #取得手续费
         self.get_account_fee()
@@ -1052,7 +1055,7 @@ class GridTraderHttp():
             'GridQty':self.grid_gridqty,
             'LowBound':self.grid_lowbound,
             'PriceReserve':self.api_pricereserve,
-            'QtyReserve':self.api_qtyreserve})
+            'QtyReserve':self.api_qtyreserve},factor)
 
         self.grid_list.sort(key=lambda x: x['LowPrice'])
 
@@ -1188,7 +1191,7 @@ class GridTraderHttp():
                 self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:sell,手数:{qty},价格:{price}')
             else:
                 self.stop()
-                strr= WebsockerServer.WebsockerServer.obj_to_json('start',-1,f'建仓成功,开启网格失败:{errmsg}',{})
+                strr= f'建仓成功,开启网格失败:{errmsg}'
                 self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单失败,原因为:{errmsg}')
                 return False,strr
         return  True,'ok'
@@ -1344,7 +1347,7 @@ class GridTraderHttp():
                     else:
                         self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单失败,原因为:{errmsg}')
                 else: #
-                    flag=GridTraderNet.check_order_isexist_by_id(order_list,item['Id'])
+                    flag=GridTraderHttp.check_order_isexist_by_id(order_list,item['Id'])
                     if flag == False:   #挂单不在,需要重新挂单
                         if len(item['Id']) >0:
                             self.add_num(item['Side'])
@@ -1501,7 +1504,7 @@ class GridTraderHttp():
 
     #根据网格设置计算出所有网格的上下沿价格           
     @staticmethod
-    def create_grid_list(ratio,taker, fund,data):
+    def create_grid_list(ratio,taker, fund,data,factor=1):
         grid_qty=int(data['GridQty'])
         low_bound=float(data['LowBound'])
         price_reserve=int(data['PriceReserve'])
@@ -1511,16 +1514,16 @@ class GridTraderHttp():
         for i in range(0,grid_qty):
             #此格的下沿价格
             low_price=low_bound*(1+ratio)**(i)
-            low_price=GridTraderNet.cut(low_price,price_reserve)
+            low_price=GridTraderHttp.cut(low_price,price_reserve)*factor
             #此格的上沿价格
             up_price=low_price*(1+ratio)
-            up_price=GridTraderNet.cut(up_price,price_reserve)
+            up_price=GridTraderHttp.cut(up_price,price_reserve)*factor
             #此格买入的手数
             buy_qty=fund/low_price
-            buy_qty=GridTraderNet.cut(buy_qty,qty_reserve)
+            buy_qty=GridTraderHttp.cut(buy_qty,qty_reserve)
             #此格卖出的手数
             sell_qty=fund/low_price*(1-taker)
-            sell_qty=GridTraderNet.cut(sell_qty,qty_reserve)
+            sell_qty=GridTraderHttp.cut(sell_qty,qty_reserve)
 
             grid_list.append(dict([
                 ('LowPrice',low_price),
@@ -1594,7 +1597,7 @@ class GridTraderHttp():
         return True,'OK'
         
 
-    def read_config_by_obj(self,jsondata):
+    def read_config_by_obj(self,api,jsondata,ratio=1):
         #print(str(jsondata))
         flag,msg=GridTraderHttp.parms_check(jsondata)
         if flag==False:
@@ -1615,13 +1618,18 @@ class GridTraderHttp():
         self.gl_orderfile=orderfile
 
         #apikey
-        self.api_apikey=jsondata['ApiKey']
+        self.api_apikey=api['ApiKey']
 
         #secret
-        self.api_secret=jsondata['Secret']
+        self.api_secret=api['Secret']
 
         #密码
-        self.api_passwd=jsondata['Password']
+        self.api_passwd=api['Password']
+
+        subaccount=api.get('Subaccount')
+        self.api_subaccount=''
+        if subaccount!=None:
+            self.api_subaccount=subaccount
 
         #价格保留数
         self.api_pricereserve=int(jsondata['PriceReserve'])
@@ -1630,8 +1638,8 @@ class GridTraderHttp():
         self.api_qtyreserve=int(jsondata['QtyReserve'])
 
         #天地格
-        self.grid_upbound=float(jsondata['UpBound'])
-        self.grid_lowbound=float(jsondata['LowBound'])
+        self.grid_upbound=float(jsondata['UpBound'])*ratio
+        self.grid_lowbound=float(jsondata['LowBound'])*ratio
 
         self.grid_open=float(jsondata['Open'])
 

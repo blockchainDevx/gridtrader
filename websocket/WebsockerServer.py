@@ -1,5 +1,5 @@
 import websockets
-from GridTraderNet import *
+from GridTraderWS import *
 import asyncio
 import json
 import sys
