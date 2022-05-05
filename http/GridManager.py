@@ -338,13 +338,13 @@ class GridManager():
         _,_,groups=SqlHandler.Execute(sql)
 
         r'''
-        +----------+-------------+------+-----+---------+-------+
-        | Field    | Type        | Null | Key | Default | Extra |
-        +----------+-------------+------+-----+---------+-------+
-        | groupid  | int         | YES  |     | NULL    |       |
-        | exchange | varchar(64) | YES  |     | NULL    |       |
-        | grouname | varchar(64) | YES  |     | NULL    |       |
-        +----------+-------------+------+-----+---------+-------+
+        +-----------+-------------+------+-----+---------+-------+
+        | Field     | Type        | Null | Key | Default | Extra |
+        +-----------+-------------+------+-----+---------+-------+
+        | groupid   | int         | YES  |     | NULL    |       |
+        | groupname | varchar(64) | YES  |     | NULL    |       |
+        | exchange  | varchar(64) | YES  |     | NULL    |       |
+        +-----------+-------------+------+-----+---------+-------+
         ''' 
         sql='select * from `group_infos`'
         _,_,group_infos=SqlHandler.Execute(sql)
