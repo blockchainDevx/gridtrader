@@ -2,8 +2,10 @@ import json
 
 CALC='/api/calc'
 START='/api/start'
-ADD='/api/add'
 STOP='/api/stop'
+ADD='/api/add'
+DEL='/api/del'
+INIT='/api/tabs'
 
 def obj_to_json(msgtype,errid,errmsg,data={},id=''):
         obj={
