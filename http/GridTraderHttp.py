@@ -13,11 +13,12 @@ import json
 import threading
 sys.path.append('..')
 from common import obj_to_json
+import traceback
 
 '''
     create_order 市价单,返回的数据结构
     {
-        'info': 
+        'info': 45
             {
                 'clOrdId': 'e847386590ce4dBC66c0ed43a0db6c96', 
                 'ordId': '424582917040529410', 
@@ -878,28 +879,29 @@ class GridTraderHttp():
 
     @staticmethod
     def grid_calc(api,data):
+        apidata=api['API']
         #登录
         exchange={}
         if(data['Exchange']=='okex'):
             exchange=ccxt.okex({
                 'enableRateLimit': True,
-                'apiKey': api['ApiKey'],
-                'secret':api['Secret'],
-                'password':api['Password'],
+                'apiKey': apidata['ApiKey'],
+                'secret':apidata['Secret'],
+                'password':apidata['Password'],
             })
         elif data['Exchange'] =='ftx':
             subaccount=api.get('Subaccount')
             if subaccount == None:
                 exchange=ccxt.ftx({
                     'enableRateLimit': True,
-                    'apiKey': api['ApiKey'],
-                    'secret':api['Secret'],
+                    'apiKey': apidata['ApiKey'],
+                    'secret':apidata['Secret'],
                 })
             else:
                 exchange=ccxt.ftx({
                     'enableRateLimit': True,
-                    'apiKey': api['ApiKey'],
-                    'secret':api['Secret'],
+                    'apiKey': apidata['ApiKey'],
+                    'secret':apidata['Secret'],
                     'headers': {
                         'FTX-SUBACCOUNT': subaccount,
                     },
@@ -911,33 +913,42 @@ class GridTraderHttp():
         #检测交易所是否连接成功
         grid_maker=0
         grid_taker=0
-        try:
-            fee=exchange.fetch_trading_fee(data['Symbol'])
-            if data['Exchange']=='okex':
+        if data['Exchange'] == 'okex':
+            try:
+                fee=exchange.fetch_trading_fee(data['Symbol'])
                 #限手续费,是扣币
                 grid_maker=abs(fee['maker'])
                 #市价手续费,是扣u
                 grid_taker=abs(fee['taker'])
-            elif data['Exchange']=='ftx':
-                grid_maker=0
-                grid_taker=0
-        except Exception as e:
-            strr= str(e)
-            return False,f'交易所连接失败:{strr}',{}
+            except Exception as e:
+                strr= str(e)
+                return False,f'交易所连接失败:{strr}',{}
 
         #计算数据
         #计算出每格的毛利润,数据不变
         up_bound=float(data['UpBound'])
         low_bound=float(data['LowBound'])
         grid_qty=int(data['GridQty'])
-        ammount=float(data['Ammount'])
-
+        ammount=float(data['Amount'])
+        
         try:
             balance=exchange.fetch_balance()
             usdt=float(balance['total']['USDT'])
             if usdt<ammount:
                 return False,f'账户余额比网格设置金额要小,账户余额{usdt}',{}
         except Exception as e:
+            print('str(Exception):\t', str(Exception))
+            print('str(e):\t\t', str(e))
+            print('repr(e):\t', repr(e))
+            # Get information about the exception that is currently being handled  
+            exc_type, exc_value, exc_traceback = sys.exc_info() 
+            print('e.message:\t', exc_value)
+            print("Note, object e and exc of Class %s is %s the same." % 
+                    (type(exc_value), ('not', '')[exc_value is e]))
+            print('traceback.print_exc(): ', traceback.print_exc())
+            print('traceback.format_exc():\n%s' % traceback.format_exc())
+
+
             strr=str(e)
             return False,f'交易所连接失败:{strr}',{}
         
@@ -992,7 +1003,6 @@ class GridTraderHttp():
         net_qty=qty*(1-grid_taker)
 
         return True,'OK',dict([
-            ('Id',''),
             ('Time',timestamp),
             ('RatioPerGrid',ratio_per_grid),
             ('FundPerGrid',fund_per_grid),
@@ -1580,7 +1590,7 @@ class GridTraderHttp():
             return False,'网格数量不能小于等于0'
 
         #资金
-        ammount=float(jsondata['Ammount'])
+        ammount=float(jsondata['Amount'])
         if ammount<=0:
             return False,'资金数据不能小于等于0'
 
@@ -1647,7 +1657,7 @@ class GridTraderHttp():
         self.grid_gridqty=int(jsondata['GridQty'])
 
         #资金
-        self.grid_ammount=float(jsondata['Ammount'])
+        self.grid_ammount=float(jsondata['Amount'])
 
         #止损价
         self.grid_stop=float(jsondata['Stop'])

@@ -1,6 +1,5 @@
 import base64
 from pyDes import *
-import chardet
 
 #Des_Key = "W2*&@<FR" # Key 长度为8
 Des_Key = "ilovejin" # Key 长度为8

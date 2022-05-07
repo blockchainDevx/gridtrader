@@ -6,7 +6,7 @@ import sys
 from tokenize import group
 from xml.dom.minidom import Identified
 sys.path.append('..')
-from common import urldata_parse,http_response,ADD,CALC,START,STOP,INIT,DEL
+from common import Singleton,urldata_parse,http_response,ADD,CALC,START,STOP,INIT,DEL,UPDATE
 from GridTraderHttp import GridTraderHttp 
 import json
 from sqlhand import SqlHandler
@@ -213,28 +213,30 @@ group_maps:{
 }
 '''
 
-class GridManager():
+class GridManager(Singleton):
     _instance_lock=threading.Lock()
-    def __init__(self):
-        self.grids_map={}
-        self.api_groups={}
-        self.trades_map={}
-        self.group_infos={}
-    
-    def __new__(cls,*args,**argv):
-        if not hasattr(GridManager, "_instance"):
-            with GridManager._instance_lock:
-                if not hasattr(GridManager, "_instance"):
-                    GridManager._instance = object.__new__(cls)  
-        return GridManager._instance
+    grids_map={}
+    api_groups={}
+    trades_map={}
+    group_infos={}
+    # def __init__(self):
+    #     self.grids_map={}
+    #     self.api_groups={}
+    #     self.trades_map={}
+    #     self.group_infos={}
     
     @staticmethod
     def metadata_encode(metadata):
         try:
-            str=json.dump(metadata)
+            str=json.dumps(metadata)
             return True, Encode(str)
-        except:
-            return False,None
+        except Exception as e:
+            print(str(e))
+            return False,None 
+
+    @staticmethod
+    def metadata_encode2(jsstr):
+        return True,Encode(jsstr)
         
     @staticmethod
     def metadata_decode(str):
@@ -242,7 +244,8 @@ class GridManager():
             str_data=Decode(str)    
             data=json.loads(str_data)
             return True,data
-        except:
+        except Exception as e:
+            print(str(e))
             return False,None
     
     def init(self):
@@ -255,11 +258,7 @@ class GridManager():
 
         #遍历api_map和api_group,
         self.api_groups_compose(api_maps,groups)
-
-
-
-        
-    
+ 
     def get_accounts(self):
         r'''
         +-------------+---------------+------+-----+---------+-------+
@@ -273,7 +272,7 @@ class GridManager():
         '''
         apis_map={}
         sql='select * from `api_datas`'
-        flag,count,res=SqlHandler.Execute(sql)
+        flag,count,res=SqlHandler.Query(sql)
         if flag==True:
             for i in range(0,len(res)):
                 metadata=res[i].get('metadata')
@@ -307,7 +306,7 @@ class GridManager():
         +----------+---------------+------+-----+---------+-------+
         '''
         sql='select * from `tabs`'
-        flag,count,res=SqlHandler.Execute(sql)
+        flag,count,res=SqlHandler.Query(sql)
         if flag==True:
             for i in range(0,count):
                 metadata=res[i].get('metadata')
@@ -318,6 +317,7 @@ class GridManager():
                 _,data=GridManager.metadata_decode(metadata)
                 if data==None:
                     continue
+                print(str(data))
                 self.grids_map[f'{id}']={
                     'title':title,
                     'content':data,
@@ -335,7 +335,7 @@ class GridManager():
         +---------+--------------+------+-----+---------+-------+
         '''
         sql= 'select * from `groups`'
-        _,_,groups=SqlHandler.Execute(sql)
+        _,_,groups=SqlHandler.Query(sql)
 
         r'''
         +-----------+-------------+------+-----+---------+-------+
@@ -347,7 +347,7 @@ class GridManager():
         +-----------+-------------+------+-----+---------+-------+
         ''' 
         sql='select * from `group_infos`'
-        _,_,group_infos=SqlHandler.Execute(sql)
+        _,_,group_infos=SqlHandler.Query(sql)
 
         groups={}
         for item in group_infos:
@@ -412,6 +412,12 @@ class GridManager():
             exchange=api_data['Exchange']
             if exchange==None:
                 continue
+            meta1= self.api_groups.get(f'{exchange}')
+            if meta1==None:
+                self.api_groups[f'{exchange}']={}
+            meta2=self.api_groups[f'{exchange}'].get('-')
+            if meta2==None:
+                self.api_groups[f'{exchange}']['-']=[]
             self.api_groups[f'{exchange}']['-'].append({
                 'ApiId':diff[index],
                 'Exchange':api_data['Exchange'],
@@ -430,35 +436,41 @@ class GridManager():
             return http_response(ADD,f'{key}',0,'ok')
         
     def add_grid_data(self,id,title):
-        self.grid_map[f'{id}']={
+        content={
+            'Exchange': '',
+            'Symbol': '', 
+            'PriceReserve': 6,
+            'QtyReserve': 6, 
+            'Open': 0, 
+            'UpBound': 0, 
+            'LowBound': 0, 
+            'GridQty': 0, 
+            'Stop': 0, 
+            'Amount': 0, 
+            'Ratio':0,
+            'GroupId':'-'
+        }
+        self.grids_map[f'{id}']={
                 'title':title,
-                'content':{
-                    'Exchange': '',
-                    'Symbol': '', 
-                    'PriceReserve': 6,
-                    'QtyReserve': 6, 
-                    'Open': 0, 
-                    'UpBound': 0, 
-                    'LowBound': 0, 
-                    'GridQty': 0, 
-                    'Stop': 0, 
-                    'Amount': 0, 
-                    'Ratio':0,
-                    'GroupId':'-' 
-                }
+                'content':content
             }
+        _,metadata=GridManager.metadata_encode(content)
+        sql=f'insert into `tabs` (id,metadata,title) values(%(id)s,%(metadata)s,%(title)s)'
+        data={'id':id,'metadata':metadata,'title':title}
+        SqlHandler.Insert(sql,data)
+        
     
     def get_API_by_exchange(self,exchange):
-        exchange_map=self.api_groups[f'{exchange}']
+        exchange_map=self.api_groups.get(f'{exchange}')
         if exchange_map==None:
             return False,f"根据交易所名称{exchange}没找到API组",None
         api_list=exchange_map.get('-')
         if api_list==None:
-            return False,f"没有{exchange}的API"
+            return False,f"没有{exchange}的API",None
         if len(api_list)>0:
             api=api_list[0]
-            return True,"",api
-        return False,f'没有{exchange}的API'
+            return True,"OK",api
+        return False,f'没有{exchange}的API',None
 
     def get_useable_API_by_ex(self,exchange):
         exchange_map=self.api_groups[f'{exchange}']
@@ -499,7 +511,8 @@ class GridManager():
                     'Stop':data['Stop'],
                     'Amount':data['Amount'],
                     'Ratio':data['Ratio'],
-                    'GroupId':data['GroupId']
+                    'GroupId':data['GroupId'],
+                    'Slip':data['Slip']
                 }
             }                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
         else:
@@ -516,6 +529,7 @@ class GridManager():
             item['content']['Amount']=data['Amount']
             item['content']['Ratio']=data['Ratio']
             item['content']['GroupId']=data['GroupId']
+            item['content']['Slip']=data['Slip']
 
     def grid_init(self):
         data=[]
@@ -540,13 +554,12 @@ class GridManager():
                 return http_response(CALC,id,-1,msg)
             else:
                 #参数检测完之后更新缓存中的数据
-                self.update_tab_by_id(id,title,content)
+                self.update_tab_by_id(id,title,json_data)
                 
                 #根据配置中的exchange获取第一份api数据
-                api=self.get_API_by_exchange(json_data['Exchange'])
-                if api==None:
-                    exc=json_data['Exchange']
-                    return http_response(CALC,id,-1,f'根据市场{exc}没有找到api')
+                flag,errmsg,api=self.get_API_by_exchange(json_data['Exchange'])
+                if flag==False:
+                    return http_response(CALC,id,-1,errmsg)
                 
                 #计算数据
                 flag,errmsg,data1=GridTraderHttp.grid_calc(api,json_data)
@@ -672,13 +685,43 @@ class GridManager():
             return http_response(STOP,id,-1,'该网格未开启')
         trade['trader'].stop()
         pass
+
+    def grid_update(self,data):
+        id=data.get('key')
+        json_data=data.get('content')
+        
+        #检查参数
+        if id==None or json_data==None:
+            return http_response(UPDATE,'',-1,'数据跟新失败,格式错误')
+
+        #修改内存数据
+        if id not in self.grids_map:
+            title=''
+            title1=data.get('title')
+            if title1 !=None:
+                title=title1
+            self.grids_map[f'{id}']={
+                'title':title,
+                'content':json_data,
+                'available':False,
+            }
+        else:
+            self.grids_map[f'{id}']['content']=json_data
+        
+        #修改数据库数据
+        flag,metadata=GridManager.metadata_encode(json_data)
+        if flag==False:
+            return http_response(UPDATE,id,-1,f'数据更新失败,格式错误')
+        sql='update `tabs` set `metadata`=%s where `id`=%s'
+        SqlHandler.Update(sql,[(metadata,id)])
+        return http_response(UPDATE,id,0,'OK')
+
+        
         
 
     def get_handler(self,path):     
         if len(path)==0:
-            return {
-                'errmsg':'请求数据格式错误'
-            }
+            return http_response(INIT,'',-1,'请求数据格式错误')
             '''
             /api/calc?
             title=123&
@@ -687,17 +730,14 @@ class GridManager():
             '''
         strs=path.split('?')
         count = len(strs)
-        if count==0 or count!=2 :
-            return {
-                'errmsg':'请求数据格式错误'
-            }
+        if count!=1 and count!=2 :
+            return http_response(INIT,'',-1,'请求数据格式错误')
         else:
-            data=urldata_parse(strs[1])
             if strs[0]==CALC:
+                data=urldata_parse(strs[1])
                 return self.grid_calc(data)
             elif strs[0]==INIT:
                 return self.grid_init()
-            
 
     def post_handler(self,path,body):
         if path==ADD:
@@ -706,5 +746,7 @@ class GridManager():
             return self.grid_start(body)
         elif path==STOP:
             return self.grid_stop(body)
+        elif path==UPDATE:
+            return self.grid_update(body)
         
         

@@ -58,9 +58,10 @@ class HTTPHandler(BaseHTTPRequestHandler):
         grid_mgr=GridManager()
         text=grid_mgr.get_handler(path_data)
         
-        text=text.encode('uft8')
+        text=text.encode('utf8')
         self.send_response(200)
         self.end_headers()
+        #self.send_header('Access-Control-Allow-Origin', '*')
 
         self.wfile.write(text)
 
@@ -81,6 +82,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
 
         content_len = int(self.headers['Content-Length'])   
         post_body = self.rfile.read(content_len)
+        print(f'POST: {self.path},{post_body}')
         data={}
         response=''
         if len(post_body)!=0:
@@ -88,16 +90,17 @@ class HTTPHandler(BaseHTTPRequestHandler):
                 data = json.loads(post_body)
                 grid_mgr=GridManager()
                 response=grid_mgr.post_handler(self.path,data)
-            except:
-                response=http_response(self.path,-1,'参数格式错误')
+            except Exception as e:
+                print(str(e))
+                response=http_response(self.path,'',-1,'参数格式错误')
 
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(response).encode()
+        self.wfile.write(response.encode())
         
     
     def do_OPTIONS(self):
-        if self.path in ('/api/calc', '/api/calc','/api/start','/api/stop','/api/query'):
+        if self.path in ('/api/add','/api/calc','/api/change', '/api/calc','/api/start','/api/stop','/api/query'):
             self.send_response(200)
             self.send_header('Allow', 'GET, OPTIONS')
             #self.send_header('Access-Control-Allow-Origin', '*')
@@ -115,7 +118,7 @@ if __name__ == '__main__':
     # ip = args.address or '0.0.0.0'
     # port = args.port or 8081
     config=Config()
-    config.Init()
+    config.Init('config.json')
     ip=config.glob['ip'] or '0.0.0.0'
     port=int(config.glob['port']) or 8081
     print('Listening %s:%d' % (ip, port))

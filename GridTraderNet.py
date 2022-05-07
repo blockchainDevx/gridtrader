@@ -739,7 +739,7 @@ class GridTraderNet():
         up_bound=float(data['UpBound'])
         low_bound=float(data['LowBound'])
         grid_qty=int(data['GridQty'])
-        ammount=float(data['Ammount'])
+        ammount=float(data['Amount'])
         price_reserve=int(data['PriceReserve'])
         ratio_per_grid=(up_bound/low_bound)**(1/grid_qty)-1
         
