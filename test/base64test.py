@@ -2,7 +2,7 @@ import base64
 from pyDes import *
 
 #Des_Key = "W2*&@<FR" # Key 长度为8
-Des_Key = "ilovejin" # Key 长度为8
+Des_Key = "gridtrad" # Key 长度为8
 #Des_IV = b"\x52\x63\x78\x61\xBC\x48\x6A\x07" # 自定IV向量
 Des_IV = '*xiaoqi*' # 自定IV向量
  
