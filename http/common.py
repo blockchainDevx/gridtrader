@@ -8,6 +8,7 @@ ADD='/api/add'
 UPDATE='/api/change'
 DEL='/api/del'
 INIT='/api/tabs'
+QUERY='/api/query'
 
 class Singleton():
     _instance_lock=threading.Lock()

@@ -7,6 +7,7 @@ from GridManager import GridManager
 import urllib.request
 from common import http_response
 from config import Config
+from common import ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY
 
 import attr
 
@@ -100,7 +101,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
         
     
     def do_OPTIONS(self):
-        if self.path in ('/api/add','/api/calc','/api/change', '/api/calc','/api/start','/api/stop','/api/query'):
+        if self.path in (ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY):
             self.send_response(200)
             self.send_header('Allow', 'GET, OPTIONS')
             #self.send_header('Access-Control-Allow-Origin', '*')
@@ -109,7 +110,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
             self.send_response(404)
         self.send_header('Content-Length', '0')
         self.end_headers()
-    
+  
 if __name__ == '__main__':
     # parser = argparse.ArgumentParser(description='Echo HTTP server.')
     # parser.add_argument('-a', '--address', help='default: 0.0.0.0')

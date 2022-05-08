@@ -6,7 +6,7 @@ import sys
 from tokenize import group
 from xml.dom.minidom import Identified
 sys.path.append('..')
-from common import Singleton,urldata_parse,http_response,ADD,CALC,START,STOP,INIT,DEL,UPDATE
+from common import Singleton,urldata_parse,http_response,ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY
 from GridTraderHttp import GridTraderHttp 
 import json
 from sqlhand import SqlHandler
@@ -41,7 +41,7 @@ api_groups:{
                     "Password":"",
                 },
                 'Subaccount':substr,
-                'Useable':False
+                'available':False
             },
             {
                 'ApiId':"",
@@ -52,7 +52,7 @@ api_groups:{
                     "Password":"",
                 },
                 'Subaccount':substr,
-                'Useable':False
+                'available':False
             },
             ...
         ]
@@ -68,7 +68,7 @@ api_groups:{
                     "Password":"",
                 },
                 'Subaccount':substr,
-                'Useable':False
+                'available':False
             },
             {
                 'ApiId':"",
@@ -79,7 +79,7 @@ api_groups:{
                     "Password":"",
                 },
                 'Subaccount':substr,
-                'Useable':False
+                'available':False
             },
             ...
         ]}
@@ -95,7 +95,7 @@ api_groups:{
                     "Password":"",
                 },
                 'Subaccount':substr,
-                'Useable':False
+                'available':False
             },
             {
                 'ApiId':"",
@@ -106,7 +106,7 @@ api_groups:{
                     "Password":"",
                 },
                 'Subaccount':substr,
-                'Useable':False
+                'available':False
             },
             ...
         ]
@@ -122,7 +122,7 @@ api_groups:{
                     "Password":"",
                 },
                 'Subaccount':substr,
-                'Useable':False
+                'available':False
             },
             {
                 'ApiId':"",
@@ -133,7 +133,7 @@ api_groups:{
                     "Password":"",
                 },
                 'Subaccount':substr,
-                'Useable':False
+                'available':False
             },
             ...
         ]}
@@ -176,7 +176,7 @@ apiid_maps:{
             "Password":"",
         },
         'Subaccount':substr,
-        'Useable':False
+        'available':False
     },
     "apiid2":{
         'Exchange':marketpalce,
@@ -186,7 +186,7 @@ apiid_maps:{
             "Password":"",
         },
         'Subaccount':substr,
-        'Useable':False
+        'available':False
     },
     ...
 }
@@ -291,7 +291,7 @@ class GridManager(Singleton):
                     'Exchange':marketpalce,
                     'API':data,
                     'Subaccount':substr,
-                    'Useable':False
+                    'available':False
                 }
         return apis_map
         
@@ -431,7 +431,7 @@ class GridManager(Singleton):
                 'Exchange':api_data['Exchange'],
                 'API':api_data['API'],
                 'Subaccount':api_data['Subaccount'],
-                'Useable':False
+                'available':False
                 })
 
     def grid_add(self,data):
@@ -488,18 +488,21 @@ class GridManager(Singleton):
         if api_list==None:
             return False,"根据交易所名称{exchange}未找到API",None
         for index in range(0,len(api_list)):
-            if api_list[index]['Useable']==False:
+            if api_list[index]['available']==False:
                 return True,"OK",api_list[index]
         return False,"",f'根据交易所名称{exchange}没有找到合适的API',None
 
     def change_available_by_Ex_And_APIId(self,exchange,apiid,flag):
-        exchange_map=self.api_groups['f{exchange}']
-        if exchange_map!=None:
-            api_list=exchange_map.get(f'-')
-            if api_list!=None and len(api_list)>0:
-                for index in range(0,len(api_list)):
-                    if api_list[index]['ApiId']==apiid:
-                        api_list[index]['ApiId']=flag
+        if exchange in self.api_groups:
+            if '-' in self.api_groups[f'{exchange}']:
+                for index in range(0,len(self.api_groups[f'{exchange}']['-'])):
+                    if self.api_groups[f'{exchange}']['-'][index]['ApiId']==apiid:
+                        self.api_groups[f'{exchange}']['-'][index]['available']=flag
+    
+    def change_available_by_Ex_and_groupid(self,exchange,groupid,flag):
+        if exchange in self.api_groups:
+            if groupid in self.api_groups[f'{exchange}']:
+                self.api_groups[f'{exchange}'][f'{groupid}']['available']=flag
 
     
     def update_tab_by_id(self,id,title,data):
@@ -596,12 +599,12 @@ class GridManager(Singleton):
         # if conf_data['available']==True:
         #     return http_response(START,id,-1,'网格开启错误,网格已经开启')
 
-        if abs(conf_data['content']['Ratio']) <=sys.float_info.epsilon: #没有配置比例,只开启一个
-            flag,errmsg=self.create_trade(id,conf_data)
+        if abs(float(conf_data['content']['Ratio'])) <=sys.float_info.epsilon: #没有配置比例,只开启一个
+            flag,errmsg=self.create_trade(id,conf_data['content'])
             if flag==False:
                 return http_response(START,id,-1,errmsg)
         else: #有配置比例,按照给的组ID启动一批网格
-            flag,errmsg=self.create_trades(conf_data)
+            flag,errmsg=self.create_trades(id,conf_data['content'])
             if flag==False:
                 return http_response(START,id,-1,errmsg)
         #网格开启成功,将网格配置状态设置为已用
@@ -613,37 +616,47 @@ class GridManager(Singleton):
             self.grids_map[f'{key}']['available']=state
     
     def create_trade(self,id,data,ratio=1):
-        flag,errmsg,api=self.get_useable_API_by_ex(data['content']['Exchange'])
+        flag,errmsg,api=self.get_useable_API_by_ex(data['Exchange'])
         if flag==False:
             return False,'没有找到能使用的API密钥'
+        
+        #创建网格
         trader=GridTraderHttp()
-        flag,errmsg=trader.read_config_by_obj(api['API'],data,ratio)
+        flag,errmsg=trader.read_config_by_obj(api,data,ratio)
         if flag==False:
             return flag,errmsg
-        flag2,errmsg2=trader.start(ratio)
+        
+        #启动网格
+        flag2,errmsg2,orderid=trader.start(ratio)
         if flag2==False:
             return flag2,errmsg2
-        thread= threading.Thread(target=trader.order_monitor)
+        thread= threading.Thread(target=trader.order_monitor,args=(orderid,))
         thread.start()
-        self.trades_map[id].append({
-            'trader':trader,
-            'thread':thread
-        })
 
-        self.change_available_by_Ex_And_APIId(data['content']['Exchange'],api['ApiId'],True)
+        #将网格对象数据保存
+        self.trades_map[id]={
+            'trader':trader,
+            'thread':thread,
+            'exchange':data['Exchange'],
+            'apiid':api['ApiId']
+            }
+
+        #将API状态设置为已启用
+        self.change_available_by_Ex_And_APIId(data['Exchange'],api['ApiId'],True)
         return True,"OK"
 
-    def create_trades(self,data):
+    def create_trades(self,id,data):
         #根据配置中的交易所名称获取交易所的所有API数据
-        exchange=data['content']['Exchange']
+        exchange=data.get('Exchange')
         if exchange==None:
             return False,'网格数据错误,没有填写交易所'
+
         exchange_maps=self.api_groups.get(f'{exchange}')
         if exchange_maps==None:
             return False,f'没有与{exchange}相关的API数据'
 
         #根据配置中的组ID获取该组的所有API数据
-        groupid=data['content']['GroupId']
+        groupid=data['GroupId']
         if groupid==None:
             return False,'网格数据错误,没有填写组数据'
 
@@ -655,34 +668,55 @@ class GridManager(Singleton):
 
         #获取组数据
         group=exchange_maps.get(f'{groupid}')
-        if group==None or len(group['apilist']):
+        if group==None or len(group['apilist'])==0:
             return False,f'网格数据错误,没有找到组{groupname}相关的API数据'
         
         #检查组是否已占用
         if group['available']==True:
             return False,f'组{groupname}已被占用'
         
+        
+        #初始化traders
+        if id not in self.trades_map:
+                self.trades_map[id]={}
+                self.trades_map[id]['groupid']=groupid
+                self.trades_map[id]['exchange']=exchange
+                self.trades_map[id]['traders']=[]
+
         #批量启动数据
         apilist=group['apilist']
-
-        factor=float(data['content']['Factor'])
+        factor=float(data['Ratio'])
         for i in range(0,len(apilist)):
             factor_mt=(factor+1)**i
+
+            #创建网格对象
             trader=GridTraderHttp()
-            flag,errmsg=trader.read_config_by_obj(apilist[i]['API'],data,factor_mt)
+            flag,errmsg=trader.read_config_by_obj(apilist[i],data,factor_mt)
             if flag==False:
+                self.interrupt_trade(self.trades_map[id])
+                del self.trades_map[id]
                 return flag,errmsg
-            flag2,errmsg2=trader.start(factor_mt)
+
+            #启动网格
+            flag2,errmsg2,orderid=trader.start(factor_mt)
             if flag2==False:
+                self.interrupt_trade(self.trades_map[id])
+                del self.trades_map[id]
                 return flag2,errmsg2
-            thread= threading.Thread(target=trader.order_monitor)
+            thread= threading.Thread(target=trader.order_monitor,args=(orderid,))
             thread.start()
-            self.trades_map[id].append({
+            
+            #将网格对象存入
+            self.trades_map[id]['traders'].append({
                 'trader':trader,
                 'thread':thread
             })
+        self.change_available_by_Ex_and_groupid(exchange,groupid,True)
         return True,'OK'
-        pass
+    
+    def interrupt_trade(self,trades):
+        for index in range(0,trades['traders']):
+            trades['traders'][index]['trader'].stop()
     
     def  grid_stop(self,data):
         id=data.get('id')
@@ -691,8 +725,16 @@ class GridManager(Singleton):
         trade=self.trades_map.get(f'{id}')
         if trade==None:
             return http_response(STOP,id,-1,'该网格未开启')
-        trade['trader'].stop()
-        pass
+        if 'traders' in trade:
+            self.change_available_by_Ex_and_groupid(trade['exchange'],trade['groupid'],False)
+            for index in range(0,len(trade['traders'])):
+                trade['traders'][index].stop()
+        else:
+            trade['trader'].stop()
+            self.change_available_by_Ex_And_APIId(trade['exchange'],trade['apiid'],False)
+
+        del self.trades_map[f'{id}']
+        return http_response(STOP,id,0,'OK')
 
     def grid_update(self,data):
         id=data.get('key')
@@ -724,7 +766,17 @@ class GridManager(Singleton):
         SqlHandler.Update(sql,[(metadata,id)])
         return http_response(UPDATE,id,0,'OK')
 
-        
+    def grid_del(self,data):
+        id=data.get('key')
+        if id in self.grids_map:
+            #从缓存中删除
+            del self.grids_map[f'{id}']
+
+            #从数据库中删除
+            sql= 'delete from `tabs` where id=%s'
+            SqlHandler.Delete(sql,id)
+        return http_response(DEL,id,0,'OK')
+
         
 
     def get_handler(self,path):     
@@ -756,5 +808,7 @@ class GridManager(Singleton):
             return self.grid_stop(body)
         elif path==UPDATE:
             return self.grid_update(body)
+        elif path==DEL:
+            return self.grid_del(body)
         
         

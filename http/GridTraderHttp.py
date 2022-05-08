@@ -891,7 +891,7 @@ class GridTraderHttp():
             })
         elif data['Exchange'] =='ftx':
             subaccount=api.get('Subaccount')
-            if subaccount == None:
+            if subaccount == None or len(subaccount)==0:
                 exchange=ccxt.ftx({
                     'enableRateLimit': True,
                     'apiKey': apidata['ApiKey'],
@@ -931,26 +931,7 @@ class GridTraderHttp():
         grid_qty=int(data['GridQty'])
         ammount=float(data['Amount'])
         
-        try:
-            balance=exchange.fetch_balance()
-            usdt=float(balance['total']['USDT'])
-            if usdt<ammount:
-                return False,f'账户余额比网格设置金额要小,账户余额{usdt}',{}
-        except Exception as e:
-            print('str(Exception):\t', str(Exception))
-            print('str(e):\t\t', str(e))
-            print('repr(e):\t', repr(e))
-            # Get information about the exception that is currently being handled  
-            exc_type, exc_value, exc_traceback = sys.exc_info() 
-            print('e.message:\t', exc_value)
-            print("Note, object e and exc of Class %s is %s the same." % 
-                    (type(exc_value), ('not', '')[exc_value is e]))
-            print('traceback.print_exc(): ', traceback.print_exc())
-            print('traceback.format_exc():\n%s' % traceback.format_exc())
-
-
-            strr=str(e)
-            return False,f'交易所连接失败:{strr}',{}
+        
         
 
         price_reserve=int(data['PriceReserve'])
@@ -1049,6 +1030,15 @@ class GridTraderHttp():
 
         #取得手续费
         self.get_account_fee()
+
+        try:
+            balance=self.exchange.fetch_balance()
+            usdt=float(balance['total']['USDT'])
+            if usdt<self.grid_ammount:
+                return False,f'账户余额比网格设置金额要小,账户余额{usdt}',None
+        except Exception as e:
+            strr=str(e)
+            return False,f'交易所连接失败:{strr}',None
         
         #每格利润
         self.ratio_per_grid=(self.grid_upbound/self.grid_lowbound)**(1/self.grid_gridqty)-1
@@ -1081,14 +1071,15 @@ class GridTraderHttp():
             ticker=self.exchange.fetch_ticker(self.api_symbol)
         except Exception as e:
             strr=str(e)
-            retstr= obj_to_json('start',-1,'获取行情失败:{strr}',{})
+            retstr= '获取行情失败:{strr}'
             self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 获取行情失败,{strr}')
-            return False,retstr
+            return False,retstr,None
         
         if self.grid_open> sys.float_info.epsilon:
-            if self.grid_open <ticker['last']:
-                retstr= obj_to_json('start',-1,'设置的开仓价比最新价小',{})
-                return  False,retstr
+            if self.grid_open >ticker['last']:
+                last=ticker['last']
+                retstr= f'设置的开仓价比最新价大,最新价为:{last}'
+                return  False,retstr,None
             last=self.grid_open
         else:
             last=ticker['last']
@@ -1098,21 +1089,12 @@ class GridTraderHttp():
         self.log(f'需要买入手数为{qty}')
 
         #进场
-        flag,errmsg=self.open_order(last,qty)
+        flag,errmsg,id=self.open_order(last,qty)
         if flag == False:
             self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 建仓失败,{errmsg}')
             retstr= obj_to_json('start',-1,'建仓失败:{errmsg}',{})
-            return False,retstr
-        
-        self.log(f'开仓成功')
-
-        #开启网格挂单
-        return self.create_grid(last)
-
-        #开启网格监视器
-        # self.order_monitor()
-
-        #self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 网格结束')
+            return False,retstr,None
+        return True,'OK',id
 
 
     #根据最新价和网格计算出入场时需要买的手数   
@@ -1157,20 +1139,21 @@ class GridTraderHttp():
                 price=last
             
 
-        order,flag,errmsg=self.create_order(type,self.side[0],qty,price)
+        order,_,errmsg=self.create_order(type,self.side[0],qty,price)
         if order!=None:
             self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 有开仓价{price},开限价进场,委托为:{order}')
-            while True:
-                order_ret,flag=self.check_order_finish(order['id'])
-                if order_ret!=None and flag==True:
-                    self.log('市场:'+self.api_exchange+",品种:"+self.api_symbol + ' 建仓成功,建仓手数为:'+str(qty)+',当前价格:'+str(last))
-                    return True,None
-                else:
-                    id=order['id']
-                    #self.log(f'开仓单{id}未成交,{order_ret},{flag}')
-                    time.sleep(1)
-                    continue
-        return False,f'开仓失败:{errmsg}'
+            return True,'OK',order['id']
+            # while True:
+            #     order_ret,flag=self.check_order_finish(order['id'])
+            #     if order_ret!=None and flag==True:
+            #         self.log('市场:'+self.api_exchange+",品种:"+self.api_symbol + ' 建仓成功,建仓手数为:'+str(qty)+',当前价格:'+str(last))
+            #         return True,None
+            #     else:
+            #         id=order['id']
+            #         #self.log(f'开仓单{id}未成交,{order_ret},{flag}')
+            #         time.sleep(1)
+            #         continue
+        return False,f'开仓失败:{errmsg}',None
 
     #网格挂单
     def create_grid(self,last):
@@ -1199,15 +1182,36 @@ class GridTraderHttp():
                 item['Side']=side
                 id=order['id']
                 self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:sell,手数:{qty},价格:{price}')
+                print(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:sell,手数:{qty},价格:{price}')
             else:
                 self.stop()
                 strr= f'建仓成功,开启网格失败:{errmsg}'
                 self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单失败,原因为:{errmsg}')
+                print(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单失败,原因为:{errmsg}')
                 return False,strr
         return  True,'ok'
 
     #定时监控挂单数:
-    def order_monitor(self):
+    def order_monitor(self,id):
+        print('网格监视器开启')
+        while True:
+            order_ret,flag=self.check_order_finish(id)
+            if order_ret!=None and flag==True:
+                self.log('市场:'+self.api_exchange+",品种:"+self.api_symbol + ' 建仓成功,建仓手数为:'+str(order_ret['filled']))
+                break
+            else:
+                time.sleep(1)
+                continue
+
+        last=0.0
+        try:
+            ticker= self.exchange.fetch_ticker(self.api_symbol)
+            last=ticker['last']
+        except Exception as e:
+            self.log(f'获取行情失败')
+            return
+
+        self.create_grid(last)
         three_hours_num=int((60*60*3)/0.2)
         i=0
         while self.start_flag:
@@ -1217,22 +1221,13 @@ class GridTraderHttp():
                 i=0
                 self.get_account_fee()
 
-            #获取最新价
-            last=0.0
-            try:
-                last=self.exchange.fetch_ticker(self.api_symbol)['last']
-            except:
-                continue
-
             #检查挂单
             #print('检查挂单')
             self.update_all_orders2(last)
             i=i+1
 
             #价格已经到了止损线,止损退出
-            if last<self.grid_stop:
-                self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 已向下突破止损线,当前价格为{last},止损价格为{self.grid_stop}')
-                self.stop_grid()
+            if self.is_stop() == True:
                 break
             
             end=time.time()
@@ -1242,9 +1237,32 @@ class GridTraderHttp():
             else:
                 time.sleep(meta_milsec/100)
 
+    def is_stop(self):
+        try:
+            last=self.exchange.fetch_ticker(self.api_symbol)
+            if last < sys.float_info.epsilon:
+                return False
+
+            if last <self.grid_stop:
+                self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 已向下突破止损线,当前价格为{last},止损价格为{self.grid_stop}')
+                self.stop_grid()
+                return True
+            return False
+        except:
+            return False
+
+
     def update_all_orders2(self,last):
         try:
+            #获取所有的未成交订单
             order_list=self.exchange.fetch_open_orders(self.api_symbol)
+
+            #获取最新行情
+            last=0.0
+            last=self.exchange.fetch_ticker(self.api_symbol)['last']
+            
+            if last < sys.float_info.epsilon:
+                return 
             
             #获取已成交的委托编号
             open_list=[]
@@ -1258,21 +1276,22 @@ class GridTraderHttp():
             for item in self.grid_list:
                 flag= item['Id'] in com_list
                 if flag==True:
-                    if len(item['Id']) ==0:
-                        qty=0
-                        price=0
-                        side=''
-                        if last >= item['UpPrice']:  #此时最新价大于网格上沿价格,挂买单
-                            qty=item['BuyQty']
-                            price=item['LowPrice']
-                            side=self.side[0]
-                        elif last < item['LowPrice']:   #此时最新价小于网格下沿价格,挂卖单
-                            qty=item['SellQty']
-                            price=item['UpPrice']
-                            side=self.side[1]
-                        else:
-                            continue
+                    #根据价格来判断新补的仓位是买还是卖
+                    qty=0
+                    price=0
+                    side=''
+                    if last >= item['UpPrice']:  #此时最新价大于网格上沿价格,挂买单
+                        qty=item['BuyQty']
+                        price=item['LowPrice']
+                        side=self.side[0]
+                    elif last < item['LowPrice']:   #此时最新价小于网格下沿价格,挂卖单
+                        qty=item['SellQty']
+                        price=item['UpPrice']
+                        side=self.side[1]
+                    else:
+                        continue
 
+                    if len(item['Id']) ==0:
                         order,_,errmsg=self.create_order(self.type[1],side,qty,price)
                         if order!=None:
                             item['Id']=order['id']
@@ -1282,53 +1301,43 @@ class GridTraderHttp():
                         else:
                             self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单失败,原因为:{errmsg}')
                     else:
-                        self.add_num(item['Side'])
+                        #补漏掉触发的委托
+                        self.cover_order(side,item)
 
-                        
-
-                        if side== item['Side']: #如果方向相同,表示行情剧烈,在切片检查阶段有行情两次跨过网格线
-                            supply_qty=0.0
-                            supply_price=0.0
-                            supply_side=''
-                            if side== self.side[0]:  #两次的行情都是buy,补一个sell
-                                supply_qty=item['BuyQty']
-                                supply_price=item['UpPrice']
-                                supply_side=self.side[1]
-                            else:
-                                supply_qty=item['SellQty']
-                                supply_price=item['LowPrice']
-                                supply_side=self.side[0]
-                            order1,_,errmsg1=self.create_order(self.type[1],supply_side,supply_qty,supply_price)
-                            if order!=None:
-                                id=order1['id']
-                                self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 补充挂单成功,委托号为:{id},方向:{supply_side},手数:{supply_qty},价格:{supply_price}')
-                            else:
-                                self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 补充挂单失败,原因为:{errmsg1}')
-
-                        qty=0.0
-                        price=0.0
-                        side=''
-                        if last >= item['UpPrice']:  #此时最新价大于网格上沿价格,挂买单
-                            qty=item['BuyQty']
-                            price=item['LowPrice']
-                            side=self.side[0]
-                        elif last < item['LowPrice']:   #此时最新价小于网格下沿价格,挂卖单
-                            qty=item['SellQty']
-                            price=item['UpPrice']
-                            side=self.side[1]
-
+                        #补缺口委托
+                        self.add_num(item['Side'])  
                         order,_,errmsg = self.create_order(self.type[1],side,qty,price)
                         if order != None:
                             item['Id']=order['id']
                             item['Side']=side
                             id=order['id']
                             self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:{side},手数:{qty},价格:{price}')
-
                         else:
                             self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单失败,原因为:{errmsg}')
         except Exception as e:
             err_msg=self.err_paser(e)
             self.log(f'批量查挂单失败,失败原因:{err_msg}')
+
+    #补仓
+    def cover_order(self,side, item):
+        if side== item['Side']: #如果方向相同,表示行情剧烈,在切片检查阶段有行情两次跨过网格线
+            supply_qty=0.0
+            supply_price=0.0
+            supply_side=''
+            if side== self.side[0]:  #两次的行情都是buy,补一个sell
+                supply_qty=item['BuyQty']
+                supply_price=item['UpPrice']
+                supply_side=self.side[1]
+            else:
+                supply_qty=item['SellQty']
+                supply_price=item['LowPrice']
+                supply_side=self.side[0]
+            order1,_,errmsg1=self.create_order(self.type[1],supply_side,supply_qty,supply_price)
+            if order1!=None:
+                id=order1['id']
+                self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 补充挂单成功,委托号为:{id},方向:{supply_side},手数:{supply_qty},价格:{supply_price}')
+            else:
+                self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 补充挂单失败,原因为:{errmsg1}')
 
     #检查账号所有挂单
     def update_all_orders(self,last):
@@ -1595,9 +1604,9 @@ class GridTraderHttp():
             return False,'资金数据不能小于等于0'
 
         #止损价
-        # stop=float(jsondata['Stop'])
-        # if stop<=0 or stop >=low_bound:
-        #     return False,'止损价不能大于地格或小于等于0'
+        stop=float(jsondata['Stop'])
+        if stop<=0 or stop >=low_bound:
+            return False,'止损价不能大于地格或小于等于0'
 
         #滑点
         slip=float(jsondata['Slip'])
@@ -1628,13 +1637,13 @@ class GridTraderHttp():
         self.gl_orderfile=orderfile
 
         #apikey
-        self.api_apikey=api['ApiKey']
+        self.api_apikey=api['API']['ApiKey']
 
         #secret
-        self.api_secret=api['Secret']
+        self.api_secret=api['API']['Secret']
 
         #密码
-        self.api_passwd=api['Password']
+        self.api_passwd=api['API']['Password']
 
         subaccount=api.get('Subaccount')
         self.api_subaccount=''
