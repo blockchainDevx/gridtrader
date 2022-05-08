@@ -335,7 +335,7 @@ class GridManager(Singleton):
         +---------+--------------+------+-----+---------+-------+
         '''
         sql= 'select * from `groups`'
-        _,_,groups=SqlHandler.Query(sql)
+        _,_,group_datas=SqlHandler.Query(sql)
 
         r'''
         +-----------+-------------+------+-----+---------+-------+
@@ -361,13 +361,13 @@ class GridManager(Singleton):
             self.group_infos[f'{id}']=name
 
             arr=[]
-            for item in groups:
+            for item in group_datas:
                 groupid= item.get('groupid')
                 apiid= item.get('apiid')
                 if groupid==None or apiid==None:
                     continue
                 if id==groupid:
-                    arr.append(id)
+                    arr.append(apiid)
             groups[f'{id}']={
                 'groupname':name,
                 'exchange':exchange,
@@ -380,7 +380,12 @@ class GridManager(Singleton):
         useable_list=[]
         for groupid,value in groups.items():
             exchange=value.get('exchange')
+            
+            exchanges=self.api_groups.get(f'{exchange}')
+            if exchanges == None:
+                self.api_groups[f'{exchange}']={}
 
+            self.api_groups[f'{exchange}'][f'{groupid}']={}
             #初始化时,group没有被使用
             self.api_groups[f'{exchange}'][f'{groupid}']['available']=False
 
@@ -388,23 +393,26 @@ class GridManager(Singleton):
             if apiid_arr==None:
                 continue
             for index in range(0,len(apiid_arr)):
-                api_data=apis.get(apiid_arr[index])
+                api_data=apis.get(f'{apiid_arr[index]}')
                 if api_data==None:
                     continue
 
                 #将API数据按照组分类
+                if 'apilist' not in self.api_groups[f'{exchange}'][f'{groupid}']:
+                    self.api_groups[f'{exchange}'][f'{groupid}']['apilist']=[]
+                
                 self.api_groups[f'{exchange}'][f'{groupid}']['apilist'].append(
                     {
                         'ApiId':apiid_arr[index],
                         'Exchange':api_data['Exchange'],
                         'API':api_data['API'],
                         'Subaccount':api_data['Subaccount'],
-                        'Useable':False
                     })
-                useable_list.append(apiid_arr[index])
+                useable_list.append(f'{apiid_arr[index]}')
         
         #api集合与使用的use_list相减得到未被分配到组的apiid列表
-        diff=list(set(apis.keys())-set(useable_list))
+        all_ids=apis.keys()
+        diff=list(set(all_ids).difference(set(useable_list)))
         for index in range(0,len(diff)):
             api_data=apis.get(diff[index])
             if api_data==None:
