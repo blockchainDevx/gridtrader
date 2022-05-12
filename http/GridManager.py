@@ -615,7 +615,7 @@ class GridManager(Singleton):
         if key in self.grids_map:
             self.grids_map[f'{key}']['available']=state
     
-    def create_trade(self,id,data,ratio=1):
+    def create_trade(self,id,data,ratio=0):
         flag,errmsg,api=self.get_useable_API_by_ex(data['Exchange'])
         if flag==False:
             return False,'没有找到能使用的API密钥'
@@ -676,36 +676,36 @@ class GridManager(Singleton):
             return False,f'组{groupname}已被占用'
         
         
-        #初始化traders
-        if id not in self.trades_map:
-                self.trades_map[id]={}
-                self.trades_map[id]['groupid']=groupid
-                self.trades_map[id]['exchange']=exchange
-                self.trades_map[id]['traders']=[]
+        
 
         #批量启动数据
         apilist=group['apilist']
         factor=float(data['Ratio'])
         for i in range(0,len(apilist)):
-            factor_mt=(factor+1)**i
+            factor_mt=factor*i
 
             #创建网格对象
             trader=GridTraderHttp()
             flag,errmsg=trader.read_config_by_obj(apilist[i],data,factor_mt)
             if flag==False:
-                self.interrupt_trade(self.trades_map[id])
-                del self.trades_map[id]
+                self.interrupt_trade(id)
                 return flag,errmsg
 
             #启动网格
             flag2,errmsg2,orderid=trader.start(factor_mt)
             if flag2==False:
-                self.interrupt_trade(self.trades_map[id])
-                del self.trades_map[id]
+                self.interrupt_trade(id)
                 return flag2,errmsg2
             thread= threading.Thread(target=trader.order_monitor,args=(orderid,))
             thread.start()
             
+            #初始化traders
+            if id not in self.trades_map:
+                self.trades_map[id]={}
+                self.trades_map[id]['groupid']=groupid
+                self.trades_map[id]['exchange']=exchange
+                self.trades_map[id]['traders']=[]
+
             #将网格对象存入
             self.trades_map[id]['traders'].append({
                 'trader':trader,
@@ -714,9 +714,13 @@ class GridManager(Singleton):
         self.change_available_by_Ex_and_groupid(exchange,groupid,True)
         return True,'OK'
     
-    def interrupt_trade(self,trades):
-        for index in range(0,trades['traders']):
-            trades['traders'][index]['trader'].stop()
+    def interrupt_trade(self,id):
+        if id in self.trades_map:
+            if 'traders' in self.trades_map[id]:
+                count=len(self.trades_map[id]['traders'])
+                for i in range(0,count):
+                    self.trades_map[id]['traders'][i]['trader'].stop()
+            del self.trades_map[id]
     
     def  grid_stop(self,data):
         id=data.get('id')
@@ -728,7 +732,7 @@ class GridManager(Singleton):
         if 'traders' in trade:
             self.change_available_by_Ex_and_groupid(trade['exchange'],trade['groupid'],False)
             for index in range(0,len(trade['traders'])):
-                trade['traders'][index].stop()
+                trade['traders'][index]['trader'].stop()
         else:
             trade['trader'].stop()
             self.change_available_by_Ex_And_APIId(trade['exchange'],trade['apiid'],False)

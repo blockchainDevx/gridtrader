@@ -931,9 +931,6 @@ class GridTraderHttp():
         grid_qty=int(data['GridQty'])
         ammount=float(data['Amount'])
         
-        
-        
-
         price_reserve=int(data['PriceReserve'])
         ratio_per_grid=(up_bound/low_bound)**(1/grid_qty)-1
         
@@ -945,8 +942,12 @@ class GridTraderHttp():
         net_profit=((1+grid_maker)**2)*(1+ratio_per_grid)-1
 
         #创建网格
-        grid_list=GridTraderHttp.create_grid_list(ratio_per_grid,grid_taker,fund_per_grid,data)
+        flag,grid_list=GridTraderHttp.create_grid_list(ratio_per_grid,grid_taker,fund_per_grid,data)
+
+        if flag==False:
+            return False,'网格计算错误,配置数据不合理,算出来的每格需要买卖的手数小于最低限额',None
         #print(str(grid_list))
+
         #获取当前价
         ticker={}
         last=0.0
@@ -958,12 +959,13 @@ class GridTraderHttp():
         else:
             try:
                 ticker = exchange.fetch_ticker(data['Symbol'])
-            except:
-                return False,f'交易所连接失败,获取最新价格失败',{}
+            except Exception as e:
+                strr=str(e)
+                return False,f'交易所连接失败,获取最新价格失败,{strr}',None
             last=ticker['last']
 
             if last<low_bound or last>up_bound:
-                return False,f'最新行情不在网格天地格价格区间之内,最新价格为{last}',{}
+                return False,f'最新行情不在网格天地格价格区间之内,最新价格为{last}',None
             timestamp=ticker['timestamp']
 
         qty=0
@@ -1009,7 +1011,7 @@ class GridTraderHttp():
             ]))
         return grid_list_meta
 
-    def start(self,factor=1):
+    def start(self,factor=0):
         #交易所连接
         if self.api_exchange=='okex':
             self.exchange=ccxt.okex({
@@ -1039,6 +1041,16 @@ class GridTraderHttp():
         except Exception as e:
             strr=str(e)
             return False,f'交易所连接失败:{strr}',None
+
+        #现货
+        symbollist=self.api_symbol.split('/')
+        symbol=''
+        if len(symbollist)>1:
+            symbol=symbollist[0]
+
+        symbol_qty=0.0
+        if symbol in balance['total']:
+            symbol_qty=balance['total'][f'{symbol}']
         
         #每格利润
         self.ratio_per_grid=(self.grid_upbound/self.grid_lowbound)**(1/self.grid_gridqty)-1
@@ -1051,7 +1063,7 @@ class GridTraderHttp():
         net_profit=((1+self.grid_maker)**2)*(1+self.ratio_per_grid)-1
 
         #创建网格
-        self.grid_list=GridTraderHttp.create_grid_list(self.ratio_per_grid,self.grid_taker,fund_per_grid,{
+        flag,self.grid_list=GridTraderHttp.create_grid_list(self.ratio_per_grid,self.grid_taker,fund_per_grid,{
             'GridQty':self.grid_gridqty,
             'LowBound':self.grid_lowbound,
             'PriceReserve':self.api_pricereserve,
@@ -1075,6 +1087,10 @@ class GridTraderHttp():
             self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 获取行情失败,{strr}')
             return False,retstr,None
         
+        if ticker['last'] > self.grid_upbound or ticker['last'] < self.grid_lowbound:
+            last=ticker['last']
+            return False,f'当前最新价超出了网格价格区间,最新价为{last},天格价格为{self.grid_upbound},地格价格为{self.grid_lowbound}',None
+        
         if self.grid_open> sys.float_info.epsilon:
             if self.grid_open >ticker['last']:
                 last=ticker['last']
@@ -1087,6 +1103,10 @@ class GridTraderHttp():
         #根据最新价计算要入场手数
         qty=self.calc_open_qty(last)
         self.log(f'需要买入手数为{qty}')
+
+        if symbol_qty >qty:
+            self.has_qty=qty
+            return True,'OK',None
 
         #进场
         flag,errmsg,id=self.open_order(last,qty)
@@ -1182,26 +1202,27 @@ class GridTraderHttp():
                 item['Side']=side
                 id=order['id']
                 self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:sell,手数:{qty},价格:{price}')
-                print(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:sell,手数:{qty},价格:{price}')
+                # print(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:sell,手数:{qty},价格:{price}')
             else:
                 self.stop()
                 strr= f'建仓成功,开启网格失败:{errmsg}'
                 self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单失败,原因为:{errmsg}')
-                print(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单失败,原因为:{errmsg}')
+                # print(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单失败,原因为:{errmsg}')
                 return False,strr
         return  True,'ok'
 
     #定时监控挂单数:
     def order_monitor(self,id):
         print('网格监视器开启')
-        while True:
-            order_ret,flag=self.check_order_finish(id)
-            if order_ret!=None and flag==True:
-                self.log('市场:'+self.api_exchange+",品种:"+self.api_symbol + ' 建仓成功,建仓手数为:'+str(order_ret['filled']))
-                break
-            else:
-                time.sleep(1)
-                continue
+        if id != None:
+            while True:
+                order_ret,flag=self.check_order_finish(id)
+                if order_ret!=None and flag==True:
+                    self.log('市场:'+self.api_exchange+",品种:"+self.api_symbol + ' 建仓成功,建仓手数为:'+str(order_ret['filled']))
+                    break
+                else:
+                    time.sleep(1)
+                    continue
 
         last=0.0
         try:
@@ -1523,7 +1544,7 @@ class GridTraderHttp():
 
     #根据网格设置计算出所有网格的上下沿价格           
     @staticmethod
-    def create_grid_list(ratio,taker, fund,data,factor=1):
+    def create_grid_list(ratio,taker, fund,data,factor=0):
         grid_qty=int(data['GridQty'])
         low_bound=float(data['LowBound'])
         price_reserve=int(data['PriceReserve'])
@@ -1533,16 +1554,19 @@ class GridTraderHttp():
         for i in range(0,grid_qty):
             #此格的下沿价格
             low_price=low_bound*(1+ratio)**(i)
-            low_price=GridTraderHttp.cut(low_price,price_reserve)*factor
+            low_price=GridTraderHttp.cut(low_price,price_reserve)+factor
             #此格的上沿价格
             up_price=low_price*(1+ratio)
-            up_price=GridTraderHttp.cut(up_price,price_reserve)*factor
+            up_price=GridTraderHttp.cut(up_price,price_reserve)+factor
             #此格买入的手数
             buy_qty=fund/low_price
             buy_qty=GridTraderHttp.cut(buy_qty,qty_reserve)
+            
             #此格卖出的手数
             sell_qty=fund/low_price*(1-taker)
             sell_qty=GridTraderHttp.cut(sell_qty,qty_reserve)
+            if buy_qty < sys.float_info.epsilon or sell_qty < sys.float_info.epsilon:
+                return False,None
 
             grid_list.append(dict([
                 ('LowPrice',low_price),
@@ -1552,7 +1576,7 @@ class GridTraderHttp():
                 ('Id',''),
                 ('Side','')
                 ]))
-        return grid_list
+        return True, grid_list
 
     @staticmethod
     def parms_check(jsondata):
@@ -1616,7 +1640,7 @@ class GridTraderHttp():
         return True,'OK'
         
 
-    def read_config_by_obj(self,api,jsondata,ratio=1):
+    def read_config_by_obj(self,api,jsondata,ratio):
         #print(str(jsondata))
         flag,msg=GridTraderHttp.parms_check(jsondata)
         if flag==False:
@@ -1657,8 +1681,8 @@ class GridTraderHttp():
         self.api_qtyreserve=int(jsondata['QtyReserve'])
 
         #天地格
-        self.grid_upbound=float(jsondata['UpBound'])*ratio
-        self.grid_lowbound=float(jsondata['LowBound'])*ratio
+        self.grid_upbound=float(jsondata['UpBound'])+ratio
+        self.grid_lowbound=float(jsondata['LowBound'])+ratio
 
         self.grid_open=float(jsondata['Open'])
 
