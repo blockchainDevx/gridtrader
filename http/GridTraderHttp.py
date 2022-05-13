@@ -1217,7 +1217,7 @@ class GridTraderHttp():
         return  True,'ok'
 
     #定时监控挂单数:
-    def order_monitor(self,id):
+    def order_monitor(self,id,lock=None):
         print('网格监视器开启')
         if id != None:
             while True:
@@ -1236,8 +1236,13 @@ class GridTraderHttp():
         except Exception as e:
             self.log(f'获取行情失败')
             return
+        if lock!=None:
+            lock.acquire()
 
         self.create_grid(last)
+        
+        if lock!=None:
+            lock.release()
         three_hours_num=int((60*60*3)/0.2)
         i=0
         while self.start_flag:

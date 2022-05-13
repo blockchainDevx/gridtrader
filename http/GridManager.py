@@ -674,13 +674,11 @@ class GridManager(Singleton):
         #检查组是否已占用
         if group['available']==True:
             return False,f'组{groupname}已被占用'
-        
-        
-        
 
         #批量启动数据
         apilist=group['apilist']
         factor=float(data['Ratio'])
+        lock=threading.Lock()
         for i in range(0,len(apilist)):
             factor_mt=factor*i
 
@@ -696,7 +694,7 @@ class GridManager(Singleton):
             if flag2==False:
                 self.interrupt_trade(id)
                 return flag2,errmsg2
-            thread= threading.Thread(target=trader.order_monitor,args=(orderid,))
+            thread= threading.Thread(target=trader.order_monitor,args=(orderid,lock,))
             thread.start()
             
             #初始化traders
