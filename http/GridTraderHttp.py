@@ -1179,6 +1179,7 @@ class GridTraderHttp():
     def create_grid(self,last):
         has_qty=self.has_qty
         for item in self.grid_list:
+            start=time.time()
             qty=0.0
             price=0.0
             side=''
@@ -1197,6 +1198,10 @@ class GridTraderHttp():
                 continue
 
             order,_,errmsg=self.create_order(self.type[1],side,qty,price)
+            end=time.time()
+            meta_time=end-start
+            if meta_time<0.2:
+                time.sleep(0.2-meta_time)
             if order !=None:
                 item['Id']=order['id']
                 item['Side']=side
@@ -1253,10 +1258,8 @@ class GridTraderHttp():
             
             end=time.time()
             meta_milsec=end-start
-            if meta_milsec<=0 or meta_milsec>200:
-                time.sleep(0.2)
-            else:
-                time.sleep(meta_milsec/100)
+            if meta_milsec < 0.2:
+                time.sleep(0.2-meta_milsec)
 
     def is_stop(self):
         try:
