@@ -468,11 +468,11 @@ class GridManager(Singleton):
         SqlHandler.Insert(sql,data)
         
     
-    def get_API_by_exchange(self,exchange):
+    def get_API_by_exchange(self,exchange,groupid):
         exchange_map=self.api_groups.get(f'{exchange}')
         if exchange_map==None:
             return False,f"根据交易所名称{exchange}没找到API组",None
-        api_list=exchange_map.get('-')
+        api_list=exchange_map.get(f'{groupid}')
         if api_list==None:
             return False,f"没有{exchange}的API",None
         if len(api_list)>0:
@@ -568,7 +568,7 @@ class GridManager(Singleton):
                 self.update_tab_by_id(id,title,json_data)
                 
                 #根据配置中的exchange获取第一份api数据
-                flag,errmsg,api=self.get_API_by_exchange(json_data['Exchange'])
+                flag,errmsg,api=self.get_API_by_exchange(json_data['Exchange'],json_data['GroupId'])
                 if flag==False:
                     return http_response(CALC,id,-1,errmsg)
                 
