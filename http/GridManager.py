@@ -476,8 +476,8 @@ class GridManager(Singleton):
         if api_list==None:
             return False,f"没有{exchange}的API",None
         if len(api_list)>0:
-            api=api_list[0]
-            return True,"OK",api
+            api=api_list['apilist']
+            return True,"OK",api[0]
         return False,f'没有{exchange}的API',None
 
     def get_useable_API_by_ex(self,exchange):

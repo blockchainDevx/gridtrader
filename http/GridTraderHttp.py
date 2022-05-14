@@ -948,7 +948,6 @@ class GridTraderHttp():
 
         if flag==False:
             return False,'网格计算错误,配置数据不合理,算出来的每格需要买卖的手数小于最低限额',None
-        #print(str(grid_list))
 
         #获取当前价
         ticker={}
@@ -1559,7 +1558,7 @@ class GridTraderHttp():
 
     #根据网格设置计算出所有网格的上下沿价格           
     @staticmethod
-    def create_grid_list(ratio,taker, fund,data,factor):
+    def create_grid_list(ratio,taker, fund,data):
         grid_qty=int(data['GridQty'])
         low_bound=float(data['LowBound'])
         price_reserve=int(data['PriceReserve'])
@@ -1569,10 +1568,10 @@ class GridTraderHttp():
         for i in range(0,grid_qty):
             #此格的下沿价格
             low_price=low_bound*(1+ratio)**(i)
-            low_price=GridTraderHttp.cut(low_price,price_reserve)+factor
+            low_price=GridTraderHttp.cut(low_price,price_reserve)
             #此格的上沿价格
             up_price=low_price*(1+ratio)
-            up_price=GridTraderHttp.cut(up_price,price_reserve)+factor
+            up_price=GridTraderHttp.cut(up_price,price_reserve)
             #此格买入的手数
             buy_qty=fund/low_price
             buy_qty=GridTraderHttp.cut(buy_qty,qty_reserve)
