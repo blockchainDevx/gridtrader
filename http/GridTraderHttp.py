@@ -1,4 +1,5 @@
 from ast import ExceptHandler
+from concurrent.futures import thread
 from datetime import datetime
 from multiprocessing.spawn import get_preparation_data
 from attr import has
@@ -840,6 +841,7 @@ class GridTraderHttp():
         self.buy_num=0
         self.sell_num=0
         self.lock=threading.Lock()
+        self.thread={}
 
         #[[每格价格,每格需要买的币,每格能卖的币]]
         self.grid_list=[]
@@ -1216,6 +1218,11 @@ class GridTraderHttp():
                 return False,strr
         return  True,'ok'
 
+    def create_monitor(self,orderid,lock):
+        self.thread=threading.Thread(target=self.order_monitor,args=(orderid,lock,))
+        self.thread.start()
+
+
     #定时监控挂单数:
     def order_monitor(self,id,lock=None):
         print('网格监视器开启')
@@ -1552,7 +1559,7 @@ class GridTraderHttp():
 
     #根据网格设置计算出所有网格的上下沿价格           
     @staticmethod
-    def create_grid_list(ratio,taker, fund,data,factor=0):
+    def create_grid_list(ratio,taker, fund,data,factor):
         grid_qty=int(data['GridQty'])
         low_bound=float(data['LowBound'])
         price_reserve=int(data['PriceReserve'])
@@ -1648,7 +1655,7 @@ class GridTraderHttp():
         return True,'OK'
         
 
-    def read_config_by_obj(self,api,jsondata,ratio):
+    def read_config_by_obj(self,api,jsondata):
         #print(str(jsondata))
         flag,msg=GridTraderHttp.parms_check(jsondata)
         if flag==False:
@@ -1689,8 +1696,8 @@ class GridTraderHttp():
         self.api_qtyreserve=int(jsondata['QtyReserve'])
 
         #天地格
-        self.grid_upbound=float(jsondata['UpBound'])+ratio
-        self.grid_lowbound=float(jsondata['LowBound'])+ratio
+        self.grid_upbound=float(jsondata['UpBound'])
+        self.grid_lowbound=float(jsondata['LowBound'])
 
         self.grid_open=float(jsondata['Open'])
 

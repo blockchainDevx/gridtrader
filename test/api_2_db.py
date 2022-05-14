@@ -8,13 +8,16 @@ def insert(sql,data):
         connect=pymysql.Connect(host='18.162.245.242',user='root',password='gridtrade',database='grid_datas')
         cursor=connect.cursor(pymysql.cursors.DictCursor)
         res=cursor.execute(sql,data)
-        connect.commit()
+        id=connect.insert_id()
+        ret=connect.commit()
         cursor.close()
         connect.close()
+        return True,id
     except Exception as e:
         print(str(e))
+        return False,None
 
-#参数: exchange,apikey,secret,password,subaccount
+#参数: exchange,apikey,secret,password,subaccount,groupid
 if __name__ == '__main__':
     count =len(sys.argv)
     if count < 4:
@@ -30,6 +33,13 @@ if __name__ == '__main__':
     if count>5 and sys.argv[5]!='-':
         subaccount=sys.argv[5]
     
+    groupid=-1
+    if count>6 and sys.argv[6]!='-':
+        try:
+            groupid=int(sys.argv[6])
+        except Exception as e:
+            print('groupid错误:'+str(e))
+
     metadata={
         "ApiKey":apikey,
         "Secret":secret,
@@ -46,7 +56,14 @@ if __name__ == '__main__':
         'marketplace':exchange,
         'subaccount':subaccount
     }
-    insert(sql,data)
+    flag,ret=insert(sql,data)
+    if flag==True and groupid!=-1:
+        sql=f'insert into `groups` (groupid,apiid) values(%(groupid)s,%(apiid)s)'
+        data={
+            'groupid':groupid,
+            'apiid':ret
+        }
+        insert(sql,data)
 
 
     

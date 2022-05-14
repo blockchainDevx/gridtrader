@@ -214,11 +214,11 @@ group_maps:{
 '''
 
 class GridManager(Singleton):
-    _instance_lock=threading.Lock()
     grids_map={}
     api_groups={}
     trades_map={}
     group_infos={}
+    lock=threading.Lock()
     # def __init__(self):
     #     self.grids_map={}
     #     self.api_groups={}
@@ -599,92 +599,59 @@ class GridManager(Singleton):
         # if conf_data['available']==True:
         #     return http_response(START,id,-1,'网格开启错误,网格已经开启')
 
-        if abs(float(conf_data['content']['Ratio'])) <=sys.float_info.epsilon: #没有配置比例,只开启一个
-            flag,errmsg=self.create_trade(id,conf_data['content'])
-            if flag==False:
-                return http_response(START,id,-1,errmsg)
-        else: #有配置比例,按照给的组ID启动一批网格
-            flag,errmsg=self.create_trades(id,conf_data['content'])
-            if flag==False:
-                return http_response(START,id,-1,errmsg)
-        #网格开启成功,将网格配置状态设置为已用
-        self.set_grid_state(id,True)
-        return http_response(START,id,0,'OK')
+        #根据组ID与交易所名称找到API数据数组
+        exchange= conf_data['content']['Exchange']
+        groupid=str(conf_data['content']['GroupId'])
+        if exchange not in self.api_groups or groupid not in self.api_groups[f'{exchange}']:
+            return http_response(START,id,-1,'网格开启错误,根据组与交易所未找到账号API数据')
+
+        if self.api_groups[f'{exchange}'][f'{groupid}']['available']==True:
+            return http_response(START,id,-1,'网格开启错误,网格配置的API组已被占用')
+
+        apilist=self.api_groups[f'{exchange}'][f'{groupid}']['apilist']
+        api_count=len(apilist)
+        if api_count==0:
+            return http_response(START,id,-1,'网格开启错误,根据组与交易所未找到账号API数据')
+        elif api_count==1:#如果API数组里数据只有一个
+            return self.create_trade(apilist[0],id,conf_data['content'])
+        else:#API数组里数据有多个
+            return self.create_trades(apilist,id,conf_data['content'])
     
-    def set_grid_state(self,key,state):
-        if key in self.grids_map:
-            self.grids_map[f'{key}']['available']=state
-    
-    def create_trade(self,id,data,ratio=0):
-        flag,errmsg,api=self.get_useable_API_by_ex(data['Exchange'])
-        if flag==False:
-            return False,'没有找到能使用的API密钥'
-        
+    def create_trade(self,api,id,data):
         #创建网格
         trader=GridTraderHttp()
-        flag,errmsg=trader.read_config_by_obj(api,data,ratio)
+        flag,errmsg=trader.read_config_by_obj(api,data)
         if flag==False:
-            return flag,errmsg
+            return http_response(START,id,-1,errmsg)
         
         #启动网格
-        flag2,errmsg2,orderid=trader.start(ratio)
+        flag2,errmsg2,orderid=trader.start()
         if flag2==False:
-            return flag2,errmsg2
-        thread= threading.Thread(target=trader.order_monitor,args=(orderid,))
-        thread.start()
+            return http_response(START,id,-1,errmsg2)
+        trader.create_monitor(orderid,self.lock)
 
         #将网格对象数据保存
         self.trades_map[id]={
             'trader':trader,
-            'thread':thread,
             'exchange':data['Exchange'],
-            'apiid':api['ApiId']
+            'groupid':data['GroupId']
             }
 
         #将API状态设置为已启用
-        self.change_available_by_Ex_And_APIId(data['Exchange'],api['ApiId'],True)
-        return True,"OK"
+        self.change_available_by_Ex_and_groupid(data['Exchange'],data['GroupId'],True)
+        return http_response(START,id,0,'OK')
 
-    def create_trades(self,id,data):
-        #根据配置中的交易所名称获取交易所的所有API数据
-        exchange=data.get('Exchange')
-        if exchange==None:
-            return False,'网格数据错误,没有填写交易所'
-
-        exchange_maps=self.api_groups.get(f'{exchange}')
-        if exchange_maps==None:
-            return False,f'没有与{exchange}相关的API数据'
-
-        #根据配置中的组ID获取该组的所有API数据
+    def create_trades(self,apilist,id,data):
         groupid=data['GroupId']
-        if groupid==None:
-            return False,'网格数据错误,没有填写组数据'
-
-        #获取组名称
-        groupname=''
-        groupname1=self.group_infos[f'{groupid}']
-        if groupname1!=None:
-            groupname=groupname1
-
-        #获取组数据
-        group=exchange_maps.get(f'{groupid}')
-        if group==None or len(group['apilist'])==0:
-            return False,f'网格数据错误,没有找到组{groupname}相关的API数据'
-        
-        #检查组是否已占用
-        if group['available']==True:
-            return False,f'组{groupname}已被占用'
-
+        exchange=data['Exchange']
         #批量启动数据
-        apilist=group['apilist']
         factor=float(data['Ratio'])
-        lock=threading.Lock()
         for i in range(0,len(apilist)):
             factor_mt=factor*i
 
             #创建网格对象
             trader=GridTraderHttp()
-            flag,errmsg=trader.read_config_by_obj(apilist[i],data,factor_mt)
+            flag,errmsg=trader.read_config_by_obj(apilist[i],data,0)
             if flag==False:
                 self.interrupt_trade(id)
                 return flag,errmsg
@@ -694,8 +661,7 @@ class GridManager(Singleton):
             if flag2==False:
                 self.interrupt_trade(id)
                 return flag2,errmsg2
-            thread= threading.Thread(target=trader.order_monitor,args=(orderid,lock,))
-            thread.start()
+            trader.create_monitor(orderid,self.lock)
             
             #初始化traders
             if id not in self.trades_map:
@@ -707,7 +673,6 @@ class GridManager(Singleton):
             #将网格对象存入
             self.trades_map[id]['traders'].append({
                 'trader':trader,
-                'thread':thread
             })
         self.change_available_by_Ex_and_groupid(exchange,groupid,True)
         return True,'OK'
@@ -733,8 +698,7 @@ class GridManager(Singleton):
                 trade['traders'][index]['trader'].stop()
         else:
             trade['trader'].stop()
-            self.change_available_by_Ex_And_APIId(trade['exchange'],trade['apiid'],False)
-
+            self.change_available_by_Ex_and_groupid(trade['exchange'],trade['groupid'],False)
         del self.trades_map[f'{id}']
         return http_response(STOP,id,0,'OK')
 
