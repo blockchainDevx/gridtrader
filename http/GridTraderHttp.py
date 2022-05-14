@@ -1558,20 +1558,22 @@ class GridTraderHttp():
 
     #根据网格设置计算出所有网格的上下沿价格           
     @staticmethod
-    def create_grid_list(ratio,taker, fund,data):
+    def create_grid_list(ratio,taker, fund,data,factor=0):
         grid_qty=int(data['GridQty'])
         low_bound=float(data['LowBound'])
         price_reserve=int(data['PriceReserve'])
         qty_reserve=int(data['QtyReserve'])
 
         grid_list=[]
+        factor_m=0
         for i in range(0,grid_qty):
+            factor_m=factor*i
             #此格的下沿价格
             low_price=low_bound*(1+ratio)**(i)
-            low_price=GridTraderHttp.cut(low_price,price_reserve)
+            low_price=GridTraderHttp.cut(low_price,price_reserve)+factor_m
             #此格的上沿价格
             up_price=low_price*(1+ratio)
-            up_price=GridTraderHttp.cut(up_price,price_reserve)
+            up_price=GridTraderHttp.cut(up_price,price_reserve)+factor_m
             #此格买入的手数
             buy_qty=fund/low_price
             buy_qty=GridTraderHttp.cut(buy_qty,qty_reserve)
