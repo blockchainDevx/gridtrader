@@ -1274,7 +1274,7 @@ class GridTraderHttp():
 
     def is_stop(self):
         try:
-            last=self.exchange.fetch_ticker(self.api_symbol)
+            last=self.exchange.fetch_ticker(self.api_symbol)['last']
             if last < sys.float_info.epsilon:
                 return False
 
