@@ -1034,20 +1034,22 @@ class GridTraderHttp():
         #取得手续费
         self.get_account_fee()
 
-        try:
-            balance=self.exchange.fetch_balance()
-            usdt=float(balance['total']['USDT'])
-            if usdt<self.grid_ammount:
-                return False,f'账户余额比网格设置金额要小,账户余额{usdt}',None
-        except Exception as e:
-            strr=str(e)
-            return False,f'交易所连接失败:{strr}',None
+        
 
         #现货
         symbollist=self.api_symbol.split('/')
         symbol=''
         if len(symbollist)>1:
             symbol=symbollist[0]
+
+        try:
+            balance=self.exchange.fetch_balance()
+            usdt=float(balance['total'][f'{symbollist[1]}'])
+            if usdt<self.grid_ammount:
+                return False,f'账户余额比网格设置金额要小,账户余额{usdt}',None
+        except Exception as e:
+            strr=str(e)
+            return False,f'交易所连接失败:{strr}',None
 
         symbol_qty=0.0
         if symbol in balance['total']:
