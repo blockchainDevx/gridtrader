@@ -842,6 +842,7 @@ class GridTraderHttp():
         self.sell_num=0
         self.lock=threading.Lock()
         self.thread={}
+        self.coin=''
 
         #[[每格价格,每格需要买的币,每格能卖的币]]
         self.grid_list=[]
@@ -1034,14 +1035,10 @@ class GridTraderHttp():
         #取得手续费
         self.get_account_fee()
 
-        
-
         #现货
         symbollist=self.api_symbol.split('/')
-        symbol=''
         if len(symbollist)>1:
-            symbol=symbollist[0]
-
+            self.coin=symbollist[0]
         try:
             balance=self.exchange.fetch_balance()
             usdt=float(balance['total'][f'{symbollist[1]}'])
@@ -1052,8 +1049,8 @@ class GridTraderHttp():
             return False,f'交易所连接失败:{strr}',None
 
         symbol_qty=0.0
-        if symbol in balance['total']:
-            symbol_qty=balance['total'][f'{symbol}']
+        if self.coin in balance['total']:
+            symbol_qty=balance['total'][f'{self.coin}']
         
         #每格利润
         self.ratio_per_grid=(self.grid_upbound/self.grid_lowbound)**(1/self.grid_gridqty)-1
@@ -1465,6 +1462,11 @@ class GridTraderHttp():
             order_list=self.exchange.fetch_open_orders(symbol=self.api_symbol)
             for item in order_list:
                 self.cancel_order(item['id'])
+            
+            balance=self.exchange.fetch_balance()
+            qty=balance['total'][f'{self.coin}']
+            if qty >sys.float_info.epsilon:
+                self.create_order(self.type[0],self.side[1],qty) #手上有币,全部卖出
             return True,f'网格关闭'
         finally:
             return True,f'网格关闭'

@@ -7,7 +7,7 @@ from GridManager import GridManager
 import urllib.request
 from common import http_response
 from config import Config
-from common import ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY
+from common import ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY,ADDAPI,CHKST,GROUPS,ADDAPIGROUP
 
 import attr
 
@@ -101,7 +101,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
         
     
     def do_OPTIONS(self):
-        if self.path in (ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY):
+        if self.path in (ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY,ADDAPI,CHKST,GROUPS,ADDAPIGROUP):
             self.send_response(200)
             self.send_header('Allow', 'GET, OPTIONS')
             #self.send_header('Access-Control-Allow-Origin', '*')
@@ -119,7 +119,7 @@ if __name__ == '__main__':
     # ip = args.address or '0.0.0.0'
     # port = args.port or 8081
     config=Config()
-    config.Init('config.json')
+    config.Init('config_copy.json')
     ip=config.glob['ip'] or '0.0.0.0'
     port=int(config.glob['port']) or 8081
     print('Listening %s:%d' % (ip, port))

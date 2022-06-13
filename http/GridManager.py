@@ -1,12 +1,11 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
-from lib2to3.pgen2.token import STAR
 import threading
 import sys
 from tokenize import group
-from xml.dom.minidom import Identified
+
 sys.path.append('..')
-from common import Singleton,urldata_parse,http_response,ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY
+from common import *
 from GridTraderHttp import GridTraderHttp 
 import json
 from sqlhand import SqlHandler
@@ -552,8 +551,37 @@ class GridManager(Singleton):
             })
         return http_response(INIT,'',0,'OK',data)
     
+    def get_groups(self):
+        sql= 'select * from `group_infos`'
+        flag,count,list=SqlHandler.Query(sql)
+        if flag==False:
+            return http_response(GROUPS,'',-1,'数据库获取不到组信息')
+
+        data=[]
+        for i in range(0,count):
+            id=list[i].get('groupid')
+            name=list[i].get('groupname')
+            exchange=list[i].get('exchange')
+            data.append({
+                'groupid':id,
+                'groupname':name,
+                'exchange':exchange
+            })
+        return http_response(GROUPS,'',0,'ok',data)
+
+    def check_start(self,data):
+        id= data.get('id')
+        if id== None:
+            return http_response(CHKST,'',-1,'参数不对')
+
+        #检查组是否已启用
+        if id in self.trades_map:
+            return http_response(CHKST,id,-1,'网格已经开启,不能关闭')
+        else:
+            return http_response(CHKST,id,0,'OK')
+            
     def grid_calc(self,data):
-        content= data.get('content')
+        content= data.get('content')  
         title=data.get('title')
         id=data.get('key')
         if content==None or id==None or title==None:
@@ -743,7 +771,113 @@ class GridManager(Singleton):
             SqlHandler.Delete(sql,id)
         return http_response(DEL,id,0,'OK')
 
+
+    #用小程序将API数据和group数据存入,然后调用接口将数据从数据库中查出来,然后将api与group配对
+    def add_api(self,data)  :
+        apiid=data.get('apiid')
+        groupid=data.get('groupid')
+        if apiid==None or groupid==None:
+            return http_response(ADDAPI,'',-1,'API添加错误,添加的数据不全')
         
+        sql='select * from `api_datas` where `id`=%(id)s' 
+        flag1,_,api_data=SqlHandler.Query(sql,{'id':apiid})
+
+        sql2= 'select * from `group_infos` where `groupid` =%(groupid)s'
+        flag2,_,group_info=SqlHandler.Query(sql2,{'groupid':groupid})
+        if flag1==False or flag2==False:
+            return http_response(ADDAPI,'',-1,'API添加错误,根据提供的API或Group未找到数据')
+
+        metadata=api_data[0].get('metadata')
+        id=api_data[0].get('id')
+        marketpalce=api_data[0].get('marketplace')
+        subaccount=api_data[0].get('subaccount')
+        if metadata==None or id ==None or marketpalce==None:
+            return http_response(ADDAPI,'',-1,'API添加错误,数据库里查出的数据缺失')
+        _,apidata=GridManager.metadata_decode(metadata)
+        if apidata==None:
+            return http_response(ADDAPI,'',-1,'API添加错误,数据库里的数据加密格式错误')
+
+        exchange1=group_info[0]['exchange']
+        exchange2=api_data[0]['marketplace']
+        if exchange1 != exchange2:
+            return http_response(ADDAPI,'',-1,'API添加数据,API数据支持的交易所跟组配置的交易所不匹配')
+        with self.lock:
+            if f'{groupid}' in self.api_groups[f'{exchange1}']:
+                self.api_groups[f'{exchange1}'][f'{groupid}']['apilist'].append({
+                    'ApiId': apiid,
+                    'Exchange':marketpalce,
+                    'API':apidata,
+                    'Subaccount':subaccount
+                })
+            else:
+                self.api_groups[f'{exchange1}'][f'{exchange1}']={}
+                self.api_groups[f'{exchange1}'][f'{exchange1}']['available']=False
+                self.api_groups[f'{exchange1}'][f'{exchange1}']['apilist']=[]
+                self.api_groups[f'{exchange1}'][f'{exchange1}']['apilist'].append({
+                    'ApiId': apiid,
+                    'Exchange':marketpalce,
+                    'API':apidata,
+                    'Subaccount':subaccount
+                })
+        
+        #将配对数据加入数据库
+        sql=f'insert into `groups` (groupid,apiid) values(%(groupid)s,%(apiid)s)'
+        data={
+            'groupid':groupid,
+            'apiid':apiid
+        }
+        SqlHandler.Insert(sql,data)
+        return http_response(ADDAPI,'',0,'OK')         
+
+    #将组与apiid绑定
+    def bind_api_group(self,data):
+        api_id=0
+        try:
+            api_id=int(data.get('apiId'))
+        except Exception as e:
+            return http_response(ADDAPIGROUP,'',-1,'传入参数不对')
+
+        group_name=data.get('groupName')
+        if api_id==None or group_name==None:
+            return http_response(ADDAPIGROUP,'',-1,'传入参数不对')
+        sql='select * from `api_datas` where `id`=%(id)s'
+        data={
+            'id':api_id
+        }
+        flag,count,list=SqlHandler.Query(sql,data)
+        if flag==None or count==0:
+            return http_response(ADDAPIGROUP,'',-1,'根据传入的APIId没有找到API数据')
+        sql2='select * from `group_infos` where `groupname`=%(groupname)s'
+        data2={
+            'groupname':group_name
+        }
+        flag2,count2,list2=SqlHandler.Query(sql2,data2)
+        if count2==0:
+            #根据groupname没在数据库中找到group数据
+            pk=SqlHandler.Insert('insert into `group_infos` (groupname,exchange) values(%(groupname)s,%(exchange)s)',{
+                'groupname':group_name,
+                'exchange':list[0]['marketplace']
+            })
+            if pk==-1:
+                return http_response(ADDAPIGROUP,'',-1,'数据插入失败')
+            
+            #将group与api配对写入数据库
+            ret=SqlHandler.Insert('insert into `groups` (apiid,groupid) values(%(apiid)s,%(groupid)s)',{
+                'apiid':api_id,
+                'groupid':int(pk)
+            })
+            if ret==-1:
+                return http_response(ADDAPIGROUP,'',-1,'数据插入失败')
+        else:
+            #数据库里有数据
+            ret=SqlHandler.Insert('insert into `groups` (apiid,groupid) values(%(apiid)s,%(groupid)s)',{
+                'apiid':int(api_id),
+                'groupid':int(list2[0]['groupid'])
+            })
+            if ret==-1:
+                return http_response(ADDAPIGROUP,'',-1,'数据插入失败')
+        return http_response(ADDAPIGROUP,'',0,'OK',{'groupid':pk,'groupname':group_name,'exchange':list[0]['marketplace']})
+        pass
 
     def get_handler(self,path):     
         if len(path)==0:
@@ -764,6 +898,11 @@ class GridManager(Singleton):
                 return self.grid_calc(data)
             elif strs[0]==INIT:
                 return self.grid_init()
+            elif strs[0]==GROUPS:
+                return self.get_groups()
+            elif strs[0]==CHKST:
+                data=urldata_parse(strs[1])
+                return self.check_start(data)
 
     def post_handler(self,path,body):
         if path==ADD:
@@ -776,5 +915,9 @@ class GridManager(Singleton):
             return self.grid_update(body)
         elif path==DEL:
             return self.grid_del(body)
+        elif path==ADDAPI:
+            return self.add_api(body)
+        elif path==ADDAPIGROUP:
+            return self.bind_api_group(body)
         
         

@@ -9,6 +9,10 @@ UPDATE='/api/change'
 DEL='/api/del'
 INIT='/api/tabs'
 QUERY='/api/query'
+ADDAPI='/api/addapi'
+CHKST='/api/isstart'
+GROUPS='/api/groups'
+ADDAPIGROUP='/api/addapigroup'
 
 class Singleton():
     _instance_lock=threading.Lock()

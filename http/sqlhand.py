@@ -37,16 +37,19 @@ class SqlHandler():
             connect= pymysql.Connect(host=chost,port=cport,user=cuser,passwd=cpasswd,database=cdtbase)
             cursor=connect.cursor(pymysql.cursors.DictCursor)
             cursor.execute(sql,data)
-            connect.commit()
+            id=connect.insert_id()
+            ret=connect.commit()
             cursor.close()
             connect.close()
+            return id
         except Exception as e:
             sstr=str(e)
             print(f'添加数据失败,{sql},{data},错误为{sstr}')
+            return -1;
 
     @staticmethod
     def Insert(sql,data):
-        SqlHandler.execute(sql,data)
+        return SqlHandler.execute(sql,data)
 
     @staticmethod
     def Delete(sql,data):

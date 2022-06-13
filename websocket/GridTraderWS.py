@@ -924,9 +924,14 @@ class GridTraderNet():
         grid_qty=int(data['GridQty'])
         ammount=float(data['Ammount'])
 
+        symbollist=data['Symbol'].split('/')
+        symbol=''
+        if len(symbollist)>1:
+            symbol=symbollist[0]
+
         try:
             balance=exchange.fetch_balance()
-            usdt=float(balance['total']['USDT'])
+            usdt=float(balance['total'][f'{symbollist[0]}'])
             if usdt<ammount:
                 return False,f'账户余额比网格设置金额要小,账户余额{usdt}',{}
         except Exception as e:
