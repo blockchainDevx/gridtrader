@@ -1,9 +1,7 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
-from msilib.schema import RadioButton
 import threading
 import sys
-from tokenize import group
 
 sys.path.append('..')
 from common import *
