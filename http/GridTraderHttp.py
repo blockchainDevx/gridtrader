@@ -1,7 +1,4 @@
-from concurrent.futures import thread
 from datetime import datetime
-from multiprocessing.spawn import get_preparation_data
-from attr import has
 import ccxt 
 import time 
 # import configparser
@@ -13,7 +10,6 @@ import json
 import threading
 sys.path.append('..')
 from common import obj_to_json
-import traceback
 
 '''
     create_order 市价单,返回的数据结构

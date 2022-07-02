@@ -1,5 +1,5 @@
 from common import Singleton
-import datetime
+from datetime import datetime
 import pytz
 
 class Logger(Singleton):
