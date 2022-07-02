@@ -50,3 +50,7 @@ def http_response(msgtype,id,errid,errmsg,data={}):
         'errmsg':errmsg,
         'data':data
     })
+
+#小数点保留位数,去尾
+def Func_DecimalCut(f,n):
+    return float(int(f*10**n)/10**n)

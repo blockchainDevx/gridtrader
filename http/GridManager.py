@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
+from msilib.schema import RadioButton
 import threading
 import sys
 from tokenize import group
@@ -7,6 +8,7 @@ from tokenize import group
 sys.path.append('..')
 from common import *
 from GridTraderHttp import GridTraderHttp 
+from HalfGridTraderHttp import HalfGridTrader
 import json
 from sqlhand import SqlHandler
 from crypto import *
@@ -444,6 +446,7 @@ class GridManager(Singleton):
         
     def add_grid_data(self,id,title):
         content={
+            'GridType':'',
             'Exchange': '',
             'Symbol': '', 
             'PriceReserve': 6,
@@ -451,6 +454,8 @@ class GridManager(Singleton):
             'Open': 0, 
             'UpBound': 0, 
             'LowBound': 0, 
+            'RisRatio':0.0,
+            'RetRatio':0.0,
             'GridQty': 0, 
             'Stop': 0, 
             'Amount': 0, 
@@ -510,6 +515,7 @@ class GridManager(Singleton):
             self.grids_map[f'{id}']={
                 'title':title,
                 'content':{
+                    'GridType':data['GridType'],
                     'Exchange':data['Exchange'],
                     'Symbol':data['Symbol'],
                     'PriceReserve':data['PriceReserve'],
@@ -517,6 +523,8 @@ class GridManager(Singleton):
                     'Open':data['Open'],
                     'UpBound':data['UpBound'],
                     'LowBound':data['LowBound'],
+                    'RisRatio':data['RisRatio'],
+                    'RetRatio':data['RetRatio'],
                     'GridQty':data['GridQty'],
                     'Stop':data['Stop'],
                     'Amount':data['Amount'],
@@ -527,6 +535,7 @@ class GridManager(Singleton):
             }                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
         else:
             item['title']=title
+            item['content']['GridType']=data['GridType']
             item['content']['Exchange']=data['Exchange']
             item['content']['Symbol']=data['Symbol']
             item['content']['PriceReserve']=data['PriceReserve']
@@ -534,6 +543,8 @@ class GridManager(Singleton):
             item['content']['Open']=data['Open']
             item['content']['UpBound']=data['UpBound']
             item['content']['LowBound']=data['LowBound']
+            item['content']['RisRatio']=data['RisRatio']
+            item['content']['RetRatio']=data['RetRatio']
             item['content']['GridQty']=data['GridQty']
             item['content']['Stop']=data['Stop']
             item['content']['Amount']=data['Amount']
@@ -588,24 +599,43 @@ class GridManager(Singleton):
             return  http_response(CALC,'', -1,'计算数据格式错误')
         try:
             json_data=json.loads(content)
-            flag,msg=GridTraderHttp.parms_check(json_data)
-            if flag==False:
-                return http_response(CALC,id,-1,msg)
+            grid_type=json_data.get('GridType')
+            if grid_type==None:
+                return http_response(CALC,'',-1,'计算数据格式错误')
+            
+            err_msg=''
+            if grid_type==COMM_GRID:
+                flag,err_msg=GridTraderHttp.parms_check(json_data)
+            elif grid_type==RAIS_GRID:
+                flag,err_msg=HalfGridTrader.parms_check(json_data)
             else:
-                #参数检测完之后更新缓存中的数据
-                self.update_tab_by_id(id,title,json_data)
-                
-                #根据配置中的exchange获取第一份api数据
-                flag,errmsg,api=self.get_API_by_exchange(json_data['Exchange'],json_data['GroupId'])
-                if flag==False:
-                    return http_response(CALC,id,-1,errmsg)
-                
-                #计算数据
-                flag,errmsg,data1=GridTraderHttp.grid_calc(api,json_data)
-                if flag==False:
-                    return http_response(CALC,id,-1,errmsg)
-                else:
-                    return http_response(CALC,id,0,errmsg,data1)
+                return http_response(CALC,id,-1,'计算数据格式错误')
+
+            if flag==False:
+                return http_response(CALC,id,-1,err_msg)
+            
+
+            #计算数据
+            if grid_type==COMM_GRID:
+                flag,err_msg,data1=GridTraderHttp.grid_calc(api,json_data)
+            elif grid_type==RAIS_GRID:
+                flag,err_msg,data1=HalfGridTrader.grid_calc(api,json_data)
+            else:
+                return http_response(CALC,id,-1,'计算数据格式错误')
+
+            if flag==False:
+                return http_response(CALC,id,-1,err_msg)
+            
+            #参数检测完之后更新缓存中的数据
+            self.update_tab_by_id(id,title,json_data)
+            
+
+            #根据配置中的exchange获取第一份api数据
+            flag,err_msg,api=self.get_API_by_exchange(json_data['Exchange'],json_data['GroupId'])
+            if flag==False:
+                return http_response(CALC,id,-1,err_msg)
+            
+            return http_response(CALC,id,0,err_msg,data1)
         except:
             return  http_response(CALC,id,-1,'计算数据格式错误')
 
@@ -647,7 +677,14 @@ class GridManager(Singleton):
     
     def create_trade(self,api,id,data):
         #创建网格
-        trader=GridTraderHttp()
+        trader={}
+        if data['GridType']==COMM_GRID:
+            trader=GridTraderHttp()
+        elif data['GridType']==RAIS_GRID:
+            trader=HalfGridTrader()
+        else:
+            return http_response(START,id,-1,'网格类型错误')
+
         flag,errmsg=trader.read_config_by_obj(api,data)
         if flag==False:
             return http_response(START,id,-1,errmsg)
@@ -678,7 +715,14 @@ class GridManager(Singleton):
             factor_mt=factor*i
 
             #创建网格对象
-            trader=GridTraderHttp()
+            trader={}
+            if data['GridType']==COMM_GRID:
+                trader=GridTraderHttp()
+            elif data['GridType']==RAIS_GRID:
+                trader=HalfGridTrader()
+            else:
+                continue
+
             flag,errmsg=trader.read_config_by_obj(apilist[i],data,0)
             if flag==False:
                 self.interrupt_trade(id)

@@ -942,7 +942,7 @@ class GridTraderHttp():
         fund_per_grid=GridTraderHttp.cut(fund_per_grid,price_reserve)
 
         #计算出每格的纯利润,数据不变
-        net_profit=((1+grid_maker)**2)*(1+ratio_per_grid)-1
+        net_profit=((1-grid_maker)**2)*(1+ratio_per_grid)-1
 
         #创建网格
         flag,grid_list=GridTraderHttp.create_grid_list(ratio_per_grid,grid_taker,fund_per_grid,data)

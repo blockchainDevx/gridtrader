@@ -9,6 +9,7 @@ from common import http_response
 from config import Config
 from common import ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY,ADDAPI,CHKST,GROUPS,ADDAPIGROUP
 
+from Logger import Logger
 import attr
 
 class HTTPHandler(BaseHTTPRequestHandler):
@@ -123,6 +124,7 @@ if __name__ == '__main__':
     ip=config.glob['ip'] or '0.0.0.0'
     port=int(config.glob['port']) or 8081
     print('Listening %s:%d' % (ip, port))
+    Logger().log(f'Listening {ip}:{port}')
     grid_mgr=GridManager()
     grid_mgr.init()
     server = HTTPServer((ip, port), HTTPHandler)
