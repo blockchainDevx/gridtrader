@@ -1,4 +1,3 @@
-from pickletools import pyset
 import pymysql
 from config import Config
 

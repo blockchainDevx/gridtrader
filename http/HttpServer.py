@@ -1,5 +1,4 @@
 from GridTraderHttp import *
-import argparse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
 from urllib.parse import urlparse
@@ -10,7 +9,6 @@ from config import Config
 from common import ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY,ADDAPI,CHKST,GROUPS,ADDAPIGROUP
 
 from Logger import Logger
-import attr
 
 class HTTPHandler(BaseHTTPRequestHandler):
     post_handler=None
