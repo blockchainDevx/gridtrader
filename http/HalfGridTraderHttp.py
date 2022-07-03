@@ -489,6 +489,7 @@ class HalfGridTrader(IGridTrader):
                 if(has_qty<qty):
                     qty=has_qty
                 has_qty=has_qty-qty
+                qty=Func_DecimalCut(qty,self.api_qtyreserve)
                 price=item['UpPrice']
                 side=SELL
             else:
