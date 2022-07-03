@@ -323,7 +323,7 @@ class HalfGridTrader(IGridTrader):
 
         #计算出需要进场的手数
         qty=HalfGridTrader.calc_open_qty(grid_lowbound,self.grid_list)
-        Logger.log(f'需要进场的手数为{qty}')
+        Logger().log(f'需要进场的手数为{qty}')
 
         #账号已有的币的手数 比需要进场的币的手数多
         if symbol_qty >qty:
@@ -637,8 +637,8 @@ class HalfGridTrader(IGridTrader):
         if last <sys.float_info.epsilon:
             return False
 
-        if last < self.grid_lowbound:
-            Logger().log(f'价格{last}已跌到下行价格{self.grid_lowbound}以下')
+        if last < self.grid_risbound:
+            Logger().log(f'价格{last}已跌到下行价格{self.grid_risbound}以下')
             self.stop()
             return True
         return False
