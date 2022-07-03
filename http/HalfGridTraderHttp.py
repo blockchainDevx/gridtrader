@@ -3,6 +3,7 @@ import sys
 import time
 
 from TraderAPI import TraderAPI
+from Logger import Logger
 
 '''
 数据结构:
