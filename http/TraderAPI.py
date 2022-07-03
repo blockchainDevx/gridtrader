@@ -1,6 +1,7 @@
 import ccxt
 from CommonGridTrader import *
 import json
+from Logger import Logger
 
 
 class TraderAPI():
@@ -69,9 +70,11 @@ class TraderAPI():
     def FetchBalance(self):
         try:
             balance=self.ex_handler.fetch_balance()
+            # print(json.dumps(balance))
             return balance
         except Exception as e:
             strr=str(e)
+            # print(strr)
             Logger().log(f'查询账号资金失败:{strr}')
             return None
 

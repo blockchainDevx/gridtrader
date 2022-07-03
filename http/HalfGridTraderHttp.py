@@ -25,13 +25,14 @@ from TraderAPI import TraderAPI
 
 class HalfGridTrader(IGridTrader):
     def __init__(self):
-        super(self)
+        super().__init__()
         self.grid_maker=0.0
         self.grid_taker=0.0
         self.trade_hd=TraderAPI()
         self.start_flag=False
         self.grid_risratio=0.0
         self.grid_retratio=0.0
+        self.api_subaccount=''
         pass
     
     #参数检查
@@ -263,7 +264,7 @@ class HalfGridTrader(IGridTrader):
         
         #获取账号资金
         balance=self.trade_hd.FetchBalance()
-        if balance ==None or 'total' not in balance:
+        if balance ==None:
             return False,f'获取账号余额失败',None
 
         #账号已有的币数量
