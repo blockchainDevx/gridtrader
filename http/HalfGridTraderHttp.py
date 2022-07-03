@@ -57,8 +57,14 @@ class HalfGridTrader(IGridTrader):
             return False,'天格不能小于等于0'
         
         open=json_data.get('Open')
-        if open==None or float(open)<sys.float_info.epsilon or float(open) > up_bound:
-            return False,'开仓价必须小于天格价格大于0'
+        if open==None :
+            return False,'1开仓价必须小于天格价格大于或等于0'
+        open=float(open)
+        if open<0:
+            return False,'2开仓价必须小于天格价格大于或等于0'
+        
+        if open > float(up_bound):
+            return False,'3开仓价必须小于天格价格大于或等于0'
 
         ris_ratio=json_data.get('RisRatio')
         if ris_ratio==None or float(ris_ratio) < sys.float_info.epsilon:
@@ -101,7 +107,7 @@ class HalfGridTrader(IGridTrader):
             grid_maker,grid_taker=trader.FetchTradingFee(symbol)
         
         up_bound=float(data['UpBound'])
-        grid_qty=float(data['GridQty'])
+        grid_qty=int(data['GridQty'])
         amount=float(data['Amount'])
         price_res=int(data['PriceReserve'])
         qty_res=int(data['QtyReserve'])

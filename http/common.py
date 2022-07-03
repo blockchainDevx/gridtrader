@@ -14,6 +14,10 @@ CHKST='/api/isstart'
 GROUPS='/api/groups'
 ADDAPIGROUP='/api/addapigroup'
 
+#网格类型
+COMM_GRID='1'
+RAIS_GRID='2'
+
 class Singleton():
     _instance_lock=threading.Lock()
     def __new__(cls,*args,**argv):

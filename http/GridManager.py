@@ -594,12 +594,12 @@ class GridManager(Singleton):
         title=data.get('title')
         id=data.get('key')
         if content==None or id==None or title==None:
-            return  http_response(CALC,'', -1,'计算数据格式错误')
+            return  http_response(CALC,'', -1,'数据格式错误')
         try:
             json_data=json.loads(content)
             grid_type=json_data.get('GridType')
             if grid_type==None:
-                return http_response(CALC,'',-1,'计算数据格式错误')
+                return http_response(CALC,'',-1,'没有发现网格类型')
             
             err_msg=''
             if grid_type==COMM_GRID:
@@ -607,19 +607,23 @@ class GridManager(Singleton):
             elif grid_type==RAIS_GRID:
                 flag,err_msg=HalfGridTrader.parms_check(json_data)
             else:
-                return http_response(CALC,id,-1,'计算数据格式错误')
+                return http_response(CALC,id,-1,'网格类型不支持')
 
             if flag==False:
                 return http_response(CALC,id,-1,err_msg)
             
-
+             #根据配置中的exchange获取第一份api数据
+            flag,err_msg,api=self.get_API_by_exchange(json_data['Exchange'],json_data['GroupId'])
+            if flag==False:
+                return http_response(CALC,id,-1,err_msg)
+            
             #计算数据
             if grid_type==COMM_GRID:
                 flag,err_msg,data1=GridTraderHttp.grid_calc(api,json_data)
             elif grid_type==RAIS_GRID:
                 flag,err_msg,data1=HalfGridTrader.grid_calc(api,json_data)
             else:
-                return http_response(CALC,id,-1,'计算数据格式错误')
+                return http_response(CALC,id,-1,'网格类型不支持')
 
             if flag==False:
                 return http_response(CALC,id,-1,err_msg)
@@ -627,14 +631,9 @@ class GridManager(Singleton):
             #参数检测完之后更新缓存中的数据
             self.update_tab_by_id(id,title,json_data)
             
-
-            #根据配置中的exchange获取第一份api数据
-            flag,err_msg,api=self.get_API_by_exchange(json_data['Exchange'],json_data['GroupId'])
-            if flag==False:
-                return http_response(CALC,id,-1,err_msg)
-            
             return http_response(CALC,id,0,err_msg,data1)
-        except:
+        except Exception as e:
+            print(str(e))
             return  http_response(CALC,id,-1,'计算数据格式错误')
 
     def grid_start(self,data):
