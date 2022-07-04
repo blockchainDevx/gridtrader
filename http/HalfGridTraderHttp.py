@@ -357,6 +357,7 @@ class HalfGridTrader(IGridTrader):
             qty=balance['total'][f'{self.coin}']
             if qty> sys.float_info.epsilon:
                 self.trade_hd.CreateOrder(self.api_symbol,MARKET,SELL,qty)
+        Logger().log('网格关闭,所有挂单撤销,所有持仓清仓')
         return True,'网格关闭'
         pass
 
@@ -648,11 +649,13 @@ class HalfGridTrader(IGridTrader):
             return False
         last=ticker['last']
 
-        if last <sys.float_info.epsilon:
+        #最新价出错
+        if last <=sys.float_info.epsilon:
             return False
 
-        if last < self.grid_risbound:
-            Logger().log(f'价格{last}已跌到下行价格{self.grid_risbound}以下')
+        #最新价大于上升价格小于回撤价格就完全退出
+        if last > self.grid_risbound and last < self.grid_retbound :
+            Logger().log(f'价格{last}已跌到回撤价格{self.grid_retbound}以下')
             self.stop()
             return True
         return False
