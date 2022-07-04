@@ -520,7 +520,7 @@ class HalfGridTrader(IGridTrader):
                 id=order['id']
                 Logger().log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:sell,手数:{qty},价格:{price}')
             else:
-                self.stop()
+                #self.stop()
                 Logger().log(f'建仓成功,开启网格失败')
                 return False
         return True
