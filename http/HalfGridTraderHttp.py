@@ -1,3 +1,4 @@
+from pickle import MARK
 from CommonGridTrader import *
 import sys
 import time
@@ -345,6 +346,18 @@ class HalfGridTrader(IGridTrader):
 
     #关闭网格
     def stop(self):
+        self.start_flag=False
+        order_list=self.trade_hd.FetchOpenOrders(self.api_symbol)
+        if order_list!=None:
+            for item in order_list:
+                self.trade_hd.CancelOrder(item['id'])
+            
+        balance=self.trade_hd.FetchBalance()
+        if balance!=None:
+            qty=balance['total'][f'{self.coin}']
+            if qty> sys.float_info.epsilon:
+                self.trade_hd.CreateOrder(self.api_symbol,MARKET,SELL,qty)
+        return True,'网格关闭'
         pass
 
     #开仓
