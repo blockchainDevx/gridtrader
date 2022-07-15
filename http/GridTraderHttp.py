@@ -1204,11 +1204,11 @@ class GridTraderHttp():
                 self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:sell,手数:{qty},价格:{price}')
                 # print(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:sell,手数:{qty},价格:{price}')
             else:
-                self.stop()
+                # self.stop()
                 strr= f'建仓成功,开启网格失败:{errmsg}'
                 self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单失败,原因为:{errmsg}')
                 # print(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单失败,原因为:{errmsg}')
-                return False,strr
+                # return False,strr
         return  True,'ok'
 
     def create_monitor(self,orderid,lock):
@@ -1267,6 +1267,8 @@ class GridTraderHttp():
                 time.sleep(0.2-meta_milsec)
 
     def is_stop(self):
+        if self.grid_stop <= sys.float_info.epsilon:
+            return False
         try:
             last=self.exchange.fetch_ticker(self.api_symbol)['last']
             if last < sys.float_info.epsilon:
@@ -1458,10 +1460,6 @@ class GridTraderHttp():
             for item in order_list:
                 self.cancel_order(item['id'])
             
-            balance=self.exchange.fetch_balance()
-            qty=balance['total'][f'{self.coin}']
-            if qty >sys.float_info.epsilon:
-                self.create_order(self.type[0],self.side[1],qty) #手上有币,全部卖出
             return True,f'网格关闭'
         finally:
             return True,f'网格关闭'
@@ -1542,6 +1540,12 @@ class GridTraderHttp():
     def stop_grid(self):
         #将所有挂单清掉
         self.stop()
+
+        #止损就把所有币卖掉
+        balance=self.exchange.fetch_balance()
+        qty=balance['total'][f'{self.coin}']
+        if qty >sys.float_info.epsilon:
+            self.create_order(self.type[0],self.side[1],qty) #手上有币,全部卖出
         # for  _,value in self.order_dict.items():
         #     id=value['id']
         #     self.cancel_order(id)
