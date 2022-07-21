@@ -1098,7 +1098,8 @@ class GridTraderHttp():
         
         #根据最新价计算要入场手数
         qty=self.calc_open_qty(last)
-        self.log(f'需要买入手数为{qty}')
+        qty=GridTraderHttp.cut(qty,self.api_qtyreserve)
+        self.log(f'计算需要买入手数为{qty}')
         remain_buy_qty=0
 
         if self.coin=='FTT':
@@ -1117,6 +1118,9 @@ class GridTraderHttp():
             else:
                 remain_buy_qty=qty-symbol_qty
                 self.has_qty=symbol_qty
+
+        remain_buy_qty=GridTraderHttp.cut(remain_buy_qty,self.api_qtyreserve)
+        self.log(f'扣除已有手数,还需要买入手数为{remain_buy_qty}')
 
         #进场
         flag,errmsg,id=self.open_order(last,remain_buy_qty)
