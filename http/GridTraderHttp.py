@@ -1047,6 +1047,7 @@ class GridTraderHttp():
         symbol_qty=0.0
         if self.coin in balance['total']:
             symbol_qty=balance['total'][f'{self.coin}']
+            self.log(f'{self.coin}已有手数{symbol_qty}')
         
         #每格利润
         self.ratio_per_grid=(self.grid_upbound/self.grid_lowbound)**(1/self.grid_gridqty)-1
@@ -1102,7 +1103,7 @@ class GridTraderHttp():
         self.log(f'计算需要买入手数为{qty}')
         remain_buy_qty=0
 
-        if self.coin=='FTT':
+        if self.coin is 'FTT':
             available_qty=symbol_qty-25
             if  available_qty>qty:
                 self.has_qty=qty
@@ -1111,6 +1112,8 @@ class GridTraderHttp():
                 if available_qty >0:
                     remain_buy_qty=qty-available_qty
                     self.has_qty=available_qty
+                else:
+                    remain_buy_qty=qty
         else:
             if symbol_qty >qty:
                 self.has_qty=qty
