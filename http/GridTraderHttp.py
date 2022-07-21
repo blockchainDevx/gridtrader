@@ -1,5 +1,5 @@
 from datetime import datetime
-from zoneinfo import available_timezones
+#from zoneinfo import available_timezones
 import ccxt 
 import time 
 # import configparser
