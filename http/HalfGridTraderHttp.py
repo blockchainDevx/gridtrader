@@ -1,4 +1,5 @@
 from pickle import MARK
+from zoneinfo import available_timezones
 from CommonGridTrader import *
 import sys
 import time
@@ -327,6 +328,22 @@ class HalfGridTrader(IGridTrader):
         Logger().log(f'需要进场的手数为{qty}')
 
         #账号已有的币的手数 比需要进场的币的手数多
+        remain_buy_qty=0
+        if self.coin=='FTT' and self.api_exchange==FTX:
+            #有效币为账号币总数减去质押币
+            available_qty=symbol_qty-FTT_PLEDGE_QTY
+            if available_qty>qty:
+                self.has_qty=qty
+                return True,'OK',None
+            else:
+                remain_buy_qty=qty-available_qty
+                self.has_qty=available_qty
+                err_msg,id=self.open_order(grid_lowbound,remain_buy_qty)
+                if id== None:
+                    return False,'建仓失败',None
+                return True,'OK',id
+
+
         if symbol_qty >qty:
             self.has_qty=qty
             return True,'OK',None

@@ -1,4 +1,5 @@
 from datetime import datetime
+from zoneinfo import available_timezones
 import ccxt 
 import time 
 # import configparser
@@ -1055,7 +1056,7 @@ class GridTraderHttp():
         fund_per_grid=GridTraderHttp.cut(fund_per_grid,self.api_pricereserve)
 
         #计算出每格的纯利润,数据不变
-        net_profit=((1+self.grid_maker)**2)*(1+self.ratio_per_grid)-1
+        # net_profit=((1+self.grid_maker)**2)*(1+self.ratio_per_grid)-1
 
         #创建网格
         flag,self.grid_list=GridTraderHttp.create_grid_list(self.ratio_per_grid,self.grid_taker,fund_per_grid,{
@@ -1098,13 +1099,27 @@ class GridTraderHttp():
         #根据最新价计算要入场手数
         qty=self.calc_open_qty(last)
         self.log(f'需要买入手数为{qty}')
+        remain_buy_qty=0
 
-        if symbol_qty >qty:
-            self.has_qty=qty
-            return True,'OK',None
+        if self.coin=='FTT':
+            available_qty=symbol_qty-25
+            if  available_qty>qty:
+                self.has_qty=qty
+                return True,'OK',None
+            else:
+                if available_qty >0:
+                    remain_buy_qty=qty-available_qty
+                    self.has_qty=available_qty
+        else:
+            if symbol_qty >qty:
+                self.has_qty=qty
+                return True,'OK',None
+            else:
+                remain_buy_qty=qty-symbol_qty
+                self.has_qty=symbol_qty
 
         #进场
-        flag,errmsg,id=self.open_order(last,qty)
+        flag,errmsg,id=self.open_order(last,remain_buy_qty)
         if flag == False:
             self.log(f'市场:{self.api_exchange},品种{self.api_symbol} 建仓失败,{errmsg}')
             retstr= obj_to_json('start',-1,'建仓失败:{errmsg}',{})
@@ -1218,7 +1233,7 @@ class GridTraderHttp():
 
     #定时监控挂单数:
     def order_monitor(self,id,lock=None):
-        print('网格监视器开启')
+        self.log('网格监视器开启')
         if id != None:
             while True:
                 order_ret,flag=self.check_order_finish(id)
