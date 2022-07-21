@@ -1103,7 +1103,7 @@ class GridTraderHttp():
         self.log(f'计算需要买入手数为{qty}')
         remain_buy_qty=0
 
-        if self.coin is 'FTT':
+        if self.coin == 'FTT':
             available_qty=symbol_qty-25
             if  available_qty>qty:
                 self.has_qty=qty
