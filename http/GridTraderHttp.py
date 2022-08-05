@@ -1604,7 +1604,7 @@ class GridTraderHttp():
             buy_qty=GridTraderHttp.cut(buy_qty,qty_reserve)
             
             #此格卖出的手数
-            sell_qty=fund/low_price*(1-taker)
+            sell_qty=buy_qty*(1-taker)
             sell_qty=GridTraderHttp.cut(sell_qty,qty_reserve)
             if buy_qty < sys.float_info.epsilon or sell_qty < sys.float_info.epsilon:
                 return False,None
