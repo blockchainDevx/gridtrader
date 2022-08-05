@@ -832,7 +832,7 @@ class GridTraderHttp():
         self.start_flag=True
         self.side=['buy','sell']
         self.type=['market','limit']
-        self.exchange_list=['okex','ftx']
+        self.exchange_list=['okex','ftx','binance']
         self.has_qty=0
         self.buy_num=0
         self.sell_num=0
@@ -905,6 +905,12 @@ class GridTraderHttp():
                         'FTX-SUBACCOUNT': subaccount,
                     },
                 })
+        elif data['Exchange'] =='binance':
+            exchange=ccxt.binance({
+                'enableRateLimit': True,
+                'apiKey': apidata['ApiKey'],
+                'secret':apidata['Secret'],
+            })
         else:
             ex_name=data['Exchange']
             return False,f'选择的交易所{ex_name}不支持',{}
@@ -1027,6 +1033,12 @@ class GridTraderHttp():
             if len(self.api_subaccount) >0:
                 data['headers']={'FTX-SUBACCOUNT': f'{self.api_subaccount}'}
             self.exchange=ccxt.ftx(data)
+        elif self.api_exchange=='binance':
+            self.exchange=ccxt.binance({
+                'enableRateLimit': True,
+                'apiKey': self.api_apikey,
+                'secret':self.api_secret,
+            })
 
         #取得手续费
         self.get_account_fee()
