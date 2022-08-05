@@ -839,6 +839,8 @@ class GridTraderHttp():
         self.lock=threading.Lock()
         self.thread={}
         self.coin=''
+        self.grid_maker=0
+        self.grid_taker=0
 
         #[[每格价格,每格需要买的币,每格能卖的币]]
         self.grid_list=[]
@@ -1554,8 +1556,21 @@ class GridTraderHttp():
             self.get_okex_trading_fee()
         elif self.api_exchange==self.exchange_list[1]:
             self.get_ftt_trading_fee()
+        elif self.api_exchange==self.exchange_list[2]:
+            self.get_binance_trading_fee()
     
     def get_okex_trading_fee(self):
+        try:
+            fee=self.exchange.fetch_trading_fee(self.api_symbol)
+            #限手续费,是扣币
+            self.grid_maker=fee['maker']
+            #市价手续费,是扣u
+            self.grid_taker=fee['taker']
+            self.log(f'限价手续费:{self.grid_maker},市价手续费:{self.grid_taker}')
+        except:
+            pass
+    
+    def get_binance_trading_fee(self):
         try:
             fee=self.exchange.fetch_trading_fee(self.api_symbol)
             #限手续费,是扣币
