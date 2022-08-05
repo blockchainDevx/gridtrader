@@ -451,7 +451,6 @@ class GridManager(Singleton):
             'Open': 0, 
             'UpBound': 0, 
             'LowBound': 0, 
-            'RetRatio':0.0,
             'GridQty': 0, 
             'Stop': 0, 
             'Amount': 0, 
@@ -518,7 +517,6 @@ class GridManager(Singleton):
                     'Open':data['Open'],
                     'UpBound':data['UpBound'],
                     'LowBound':data['LowBound'],
-                    'RetRatio':data['RetRatio'],
                     'GridQty':data['GridQty'],
                     'Stop':data['Stop'],
                     'Amount':data['Amount'],
@@ -536,7 +534,6 @@ class GridManager(Singleton):
             item['content']['Open']=data['Open']
             item['content']['UpBound']=data['UpBound']
             item['content']['LowBound']=data['LowBound']
-            item['content']['RetRatio']=data['RetRatio']
             item['content']['GridQty']=data['GridQty']
             item['content']['Stop']=data['Stop']
             item['content']['Amount']=data['Amount']
