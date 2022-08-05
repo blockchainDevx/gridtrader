@@ -1636,8 +1636,8 @@ class GridTraderHttp():
         exchange=jsondata['Exchange']
         symbol=jsondata['Symbol']
          #exchange
-        if exchange.lower() !='okex' and exchange !='ftx':
-            return  False,'交易所设置错误,目前只支持OKEX或者FTX'
+        if exchange.lower() !='okex' and exchange !='ftx' and exchange !='binance':
+            return  False,'交易所设置错误,目前只支持OKEX,FTX或者BINANCE'
         
         #交易品种
         if len(symbol)==0:
