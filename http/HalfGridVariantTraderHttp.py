@@ -6,6 +6,7 @@ import time
 
 from TraderAPI import TraderAPI
 from Logger import Logger
+
 from common import *
 
 '''
@@ -27,7 +28,7 @@ from common import *
 }
 '''
 
-class HalfGridTrader(IGridTrader):
+class HalfGridVariantTrader(IGridTrader):
     def __init__(self):
         super().__init__()
         self.grid_maker=0.0
@@ -190,7 +191,7 @@ class HalfGridTrader(IGridTrader):
     #读取配置
     def read_config_by_obj(self,api,json_data):
         #入参数据检查
-        flag,msg=HalfGridTrader.parms_check(json_data)
+        flag,msg=HalfGridVariantTrader.parms_check(json_data)
         if flag==False:
             return False,msg
         
@@ -328,7 +329,7 @@ class HalfGridTrader(IGridTrader):
         self.grid_list.sort(key=lambda x:x['LowPrice'])
 
         #计算出需要进场的手数
-        qty=HalfGridTrader.calc_open_qty(grid_lowbound,self.grid_list)
+        qty=HalfGridVariantTrader.calc_open_qty(grid_lowbound,self.grid_list)
         Logger().log(f'需要进场的手数为{qty}')
 
         #账号已有的币的手数 比需要进场的币的手数多
@@ -606,11 +607,11 @@ class HalfGridTrader(IGridTrader):
                     qty=0
                     price=0
                     side=''
-                    if last >= item['UpPrice']:  #此时最新价大于网格上沿价格,挂买单
-                        qty=item['BuyQty']
-                        price=item['LowPrice']
-                        side=BUY
-                    elif last < item['LowPrice']:   #此时最新价小于网格下沿价格,挂卖单
+                    # if last >= item['UpPrice']:  #此时最新价大于网格上沿价格,挂买单
+                    #     qty=item['BuyQty']
+                    #     price=item['LowPrice']
+                    #     side=BUY
+                    if last < item['LowPrice']:   #此时最新价小于网格下沿价格,挂卖单
                         qty=item['SellQty']
                         price=item['UpPrice']
                         side=SELL
@@ -646,10 +647,10 @@ class HalfGridTrader(IGridTrader):
                 supply_qty=item['BuyQty']
                 supply_price=item['UpPrice']
                 supply_side=SELL
-            else:
-                supply_qty=item['SellQty']
-                supply_price=item['LowPrice']
-                supply_side=BUY
+            # else:
+            #     supply_qty=item['SellQty']
+            #     supply_price=item['LowPrice']
+            #     supply_side=BUY
             order=self.condition_create_order(self.api_symbol,LIMIT,supply_side,supply_qty,supply_price,last)
             if order!=None:
                 id=order['id']
@@ -657,6 +658,9 @@ class HalfGridTrader(IGridTrader):
 
     def condition_create_order(self,symbol,type,side,qty,price,last):
         #超过上升价格就不买了
+        if side == BUY:
+            return None
+
         if side==BUY and last >self.grid_risbound:
             return None
 

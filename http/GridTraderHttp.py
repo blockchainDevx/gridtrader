@@ -10,7 +10,7 @@ import sys
 import json
 import threading
 sys.path.append('..')
-from common import obj_to_json
+from common import *
 
 '''
     create_order 市价单,返回的数据结构
@@ -881,14 +881,14 @@ class GridTraderHttp():
         apidata=api['API']
         #登录
         exchange={}
-        if(data['Exchange']=='okex'):
+        if(data['Exchange']==OKEX):
             exchange=ccxt.okex({
                 'enableRateLimit': True,
                 'apiKey': apidata['ApiKey'],
                 'secret':apidata['Secret'],
                 'password':apidata['Password'],
             })
-        elif data['Exchange'] =='ftx':
+        elif data['Exchange'] ==FTX:
             subaccount=api.get('Subaccount')
             if subaccount == None or len(subaccount)==0:
                 exchange=ccxt.ftx({
@@ -905,6 +905,18 @@ class GridTraderHttp():
                         'FTX-SUBACCOUNT': subaccount,
                     },
                 })
+        elif data['Exchange']==BINANCE:
+            exchange=ccxt.binance({
+                'enableRateLimit': True,
+                'apiKey': apidata['ApiKey'],
+                'secret':apidata['Secret'],
+            })
+        elif data['Exchange']==GATE:
+            exchange=ccxt.gateio({
+                'enableRateLimit': True,
+                'apiKey': apidata['ApiKey'],
+                'secret':apidata['Secret'],
+            })
         else:
             ex_name=data['Exchange']
             return False,f'选择的交易所{ex_name}不支持',{}
@@ -912,7 +924,7 @@ class GridTraderHttp():
         #检测交易所是否连接成功
         grid_maker=0
         grid_taker=0
-        if data['Exchange'] == 'okex':
+        if data['Exchange'] == OKEX:
             try:
                 fee=exchange.fetch_trading_fee(data['Symbol'])
                 #限手续费,是扣币
@@ -1011,14 +1023,14 @@ class GridTraderHttp():
 
     def start(self,factor=0):
         #交易所连接
-        if self.api_exchange=='okex':
+        if self.api_exchange==OKEX:
             self.exchange=ccxt.okex({
                 'enableRateLimit': True,
                 'apiKey': self.api_apikey,
                 'secret':self.api_secret,
                 'password':self.api_passwd,
             })
-        elif self.api_exchange =='ftx':
+        elif self.api_exchange ==FTX:
             data={
                 'enableRateLimit': True,
                 'apiKey': self.api_apikey,
@@ -1027,6 +1039,18 @@ class GridTraderHttp():
             if len(self.api_subaccount) >0:
                 data['headers']={'FTX-SUBACCOUNT': f'{self.api_subaccount}'}
             self.exchange=ccxt.ftx(data)
+        elif self.api_exchange==BINANCE:
+            self.exchange=ccxt.binance({
+                'enableRateLimit': True,
+                'apiKey': self.api_apikey,
+                'secret':self.api_secret,
+            })
+        elif self.api_exchange==GATE:
+            self.ex_handler=ccxt.gateio({
+                'enableRateLimit': True,
+                'apiKey': self.api_apikey,
+                'secret':self.api_secret,
+            })
 
         #取得手续费
         self.get_account_fee()

@@ -7,7 +7,8 @@
         "password": "gridtrade"
     },
     "global":{
-        "ip":"0.0.0.0",
-        "port":8081
+        "http_ip":"0.0.0.0",
+        "http_port":8081,
+        "web_port":8082
     }
 }

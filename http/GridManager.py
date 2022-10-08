@@ -3,10 +3,14 @@
 import threading
 import sys
 
+from WebPush import WebPush
+from SignPolicy import SignPolicy
+
 sys.path.append('..')
 from common import *
 from GridTraderHttp import GridTraderHttp 
 from HalfGridTraderHttp import HalfGridTrader
+from HalfGridVariantTraderHttp import HalfGridVariantTrader
 import json
 from sqlhand import SqlHandler
 from crypto import *
@@ -213,16 +217,13 @@ group_maps:{
 '''
 
 class GridManager(Singleton):
-    grids_map={}
-    api_groups={}
-    trades_map={}
-    group_infos={}
-    lock=threading.Lock()
-    # def __init__(self):
-    #     self.grids_map={}
-    #     self.api_groups={}
-    #     self.trades_map={}
-    #     self.group_infos={}
+    __grids_map={}
+    __api_groups={}
+    __trades_map={}
+    __group_infos={}
+    __lock=threading.Lock()
+
+    sign={}
     
     @staticmethod
     def metadata_encode(metadata):
@@ -317,7 +318,7 @@ class GridManager(Singleton):
                 if data==None:
                     continue
                 print(str(data))
-                self.grids_map[f'{id}']={
+                self.__grids_map[f'{id}']={
                     'title':title,
                     'content':data,
                     'available':False,
@@ -357,7 +358,10 @@ class GridManager(Singleton):
             if id==None or exchange==None:
                 continue
             
-            self.group_infos[f'{id}']=name
+            self.__group_infos[f'{id}']={
+                'name':name,
+                'exchange':exchange
+            }
 
             arr=[]
             for item in group_datas:
@@ -380,13 +384,13 @@ class GridManager(Singleton):
         for groupid,value in groups.items():
             exchange=value.get('exchange')
             
-            exchanges=self.api_groups.get(f'{exchange}')
+            exchanges=self.__api_groups.get(f'{exchange}')
             if exchanges == None:
-                self.api_groups[f'{exchange}']={}
+                self.__api_groups[f'{exchange}']={}
 
-            self.api_groups[f'{exchange}'][f'{groupid}']={}
+            self.__api_groups[f'{exchange}'][f'{groupid}']={}
             #初始化时,group没有被使用
-            self.api_groups[f'{exchange}'][f'{groupid}']['available']=False
+            self.__api_groups[f'{exchange}'][f'{groupid}']['available']=False
 
             apiid_arr=value.get('apiid_arr')
             if apiid_arr==None:
@@ -397,10 +401,10 @@ class GridManager(Singleton):
                     continue
 
                 #将API数据按照组分类
-                if 'apilist' not in self.api_groups[f'{exchange}'][f'{groupid}']:
-                    self.api_groups[f'{exchange}'][f'{groupid}']['apilist']=[]
+                if 'apilist' not in self.__api_groups[f'{exchange}'][f'{groupid}']:
+                    self.__api_groups[f'{exchange}'][f'{groupid}']['apilist']=[]
                 
-                self.api_groups[f'{exchange}'][f'{groupid}']['apilist'].append(
+                self.__api_groups[f'{exchange}'][f'{groupid}']['apilist'].append(
                     {
                         'ApiId':apiid_arr[index],
                         'Exchange':api_data['Exchange'],
@@ -419,13 +423,13 @@ class GridManager(Singleton):
             exchange=api_data['Exchange']
             if exchange==None:
                 continue
-            meta1= self.api_groups.get(f'{exchange}')
+            meta1= self.__api_groups.get(f'{exchange}')
             if meta1==None:
-                self.api_groups[f'{exchange}']={}
-            meta2=self.api_groups[f'{exchange}'].get('-')
+                self.__api_groups[f'{exchange}']={}
+            meta2=self.__api_groups[f'{exchange}'].get('-')
             if meta2==None:
-                self.api_groups[f'{exchange}']['-']=[]
-            self.api_groups[f'{exchange}']['-'].append({
+                self.__api_groups[f'{exchange}']['-']=[]
+            self.__api_groups[f'{exchange}']['-'].append({
                 'ApiId':diff[index],
                 'Exchange':api_data['Exchange'],
                 'API':api_data['API'],
@@ -458,9 +462,12 @@ class GridManager(Singleton):
             'Stop': 0, 
             'Amount': 0, 
             'Ratio':0,
-            'GroupId':'-'
+            'GroupId':'-',
+            'GroupList':[],
+            'Qty':0,
+            'SignType':'',
         }
-        self.grids_map[f'{id}']={
+        self.__grids_map[f'{id}']={
                 'title':title,
                 'content':content
             }
@@ -471,7 +478,7 @@ class GridManager(Singleton):
         
     
     def get_API_by_exchange(self,exchange,groupid):
-        exchange_map=self.api_groups.get(f'{exchange}')
+        exchange_map=self.__api_groups.get(f'{exchange}')
         if exchange_map==None:
             return False,f"根据交易所名称{exchange}没找到API组",None
         api_list=exchange_map.get(f'{groupid}')
@@ -483,7 +490,7 @@ class GridManager(Singleton):
         return False,f'没有{exchange}的API',None
 
     def get_useable_API_by_ex(self,exchange):
-        exchange_map=self.api_groups[f'{exchange}']
+        exchange_map=self.__api_groups[f'{exchange}']
         if exchange_map==None:
             return False,"根据交易所名称{exchange}未找到API",None
         api_list=exchange_map.get('-')
@@ -495,22 +502,21 @@ class GridManager(Singleton):
         return False,"",f'根据交易所名称{exchange}没有找到合适的API',None
 
     def change_available_by_Ex_And_APIId(self,exchange,apiid,flag):
-        if exchange in self.api_groups:
-            if '-' in self.api_groups[f'{exchange}']:
-                for index in range(0,len(self.api_groups[f'{exchange}']['-'])):
-                    if self.api_groups[f'{exchange}']['-'][index]['ApiId']==apiid:
-                        self.api_groups[f'{exchange}']['-'][index]['available']=flag
+        if exchange in self.__api_groups:
+            if '-' in self.__api_groups[f'{exchange}']:
+                for index in range(0,len(self.__api_groups[f'{exchange}']['-'])):
+                    if self.__api_groups[f'{exchange}']['-'][index]['ApiId']==apiid:
+                        self.__api_groups[f'{exchange}']['-'][index]['available']=flag
     
     def change_available_by_Ex_and_groupid(self,exchange,groupid,flag):
-        if exchange in self.api_groups:
-            if groupid in self.api_groups[f'{exchange}']:
-                self.api_groups[f'{exchange}'][f'{groupid}']['available']=flag
-
+        if exchange in self.__api_groups:
+            if groupid in self.__api_groups[f'{exchange}']:
+                self.__api_groups[f'{exchange}'][f'{groupid}']['available']=flag
     
     def update_tab_by_id(self,id,title,data):
-        item=self.grids_map.get(id)
+        item=self.__grids_map.get(id)
         if item==None:
-            self.grids_map[f'{id}']={
+            self.__grids_map[f'{id}']={
                 'title':title,
                 'content':{
                     'GridType':data['GridType'],
@@ -528,7 +534,10 @@ class GridManager(Singleton):
                     'Amount':data['Amount'],
                     'Ratio':data['Ratio'],
                     'GroupId':data['GroupId'],
-                    'Slip':data['Slip']
+                    'Slip':data['Slip'],
+                    'GroupList':data.get('GroupList'),
+                    'Qty':data.get('Qty'),
+                    'SignType':data.get('SignType')
                 }
             }                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
         else:
@@ -549,10 +558,13 @@ class GridManager(Singleton):
             item['content']['Ratio']=data['Ratio']
             item['content']['GroupId']=data['GroupId']
             item['content']['Slip']=data['Slip']
+            item['content']['GroupList']=data.get('GroupList')
+            item['content']['Qty']=data.get('Qty')
+            item['content']['SignType']=data.get('SignType')
 
     def grid_init(self):
         data=[]
-        for key,value in self.grids_map.items():
+        for key,value in self.__grids_map.items():
             data.append({
                 'key':key,
                 'title':value['title'],
@@ -584,10 +596,176 @@ class GridManager(Singleton):
             return http_response(CHKST,'',-1,'参数不对')
 
         #检查组是否已启用
-        if id in self.trades_map:
-            return http_response(CHKST,id,-1,'网格已经开启,不能关闭')
+        if id in self.__trades_map:
+            return http_response(CHKST,id,1,'网格已经开启,不能关闭')
         else:
             return http_response(CHKST,id,0,'OK')
+
+    '''
+        ut信号格式:{
+            sign:'UT',
+            side:'buy',
+            price:'17000',
+            close:'16000',
+            time:1662308649859,
+            hour:1,
+        }
+    '''
+    def sign_ut(self,data):
+        if data==None:
+            return
+        # print('ut'+json.dumps(data))
+        symbol=data.get('symbol')
+        sign=data.get('sign')
+        side=data.get('side')
+        price=data.get('price')
+        time=data.get('time')
+        hour=data.get('hour')
+        if symbol==None or sign==None or side==None or price==None or time==None or hour==None:
+            print('ut数据错误')
+            return
+        
+        # print('2')
+        if symbol not in self.sign:
+                self.sign[symbol]={}
+            
+        if hour not in self.sign[symbol]:
+            self.sign[symbol][hour]={}
+            self.sign[symbol][hour]['ut']={}
+        self.sign[symbol][hour]['ut']={
+            'side':side,
+            'price':price,
+            'time':time
+        }
+
+        self.sign_handle(symbol,hour)
+        # print('3')
+        msg= json.dumps(data)
+        # print('5')
+        webpush=WebPush()
+        webpush.sendmsg(msg)
+        # print('4')
+        # print(msg)
+        pass
+
+    '''
+        stc_value信号格式
+        {
+            sign:'STC_VALUE',
+            number:20,
+            price:'17000',
+            time:1662308649859,
+            hour:1
+        }
+    '''
+    def sign_stc_value(self,data):
+        if data == None:
+            return
+        symbol=data.get('symbol')
+        sign=data.get('sign')
+        number=data.get('number')
+        time=data.get('time')
+        hour=data.get('hour')
+        if symbol==None or sign==None or number==None or time==None or hour==None:
+            print('value数据错误')
+            return
+        
+        try: 
+            if symbol not in self.sign:
+                self.sign[symbol]={}
+            
+            if hour not in self.sign[symbol]:
+                self.sign[symbol][hour]={}
+                self.sign[symbol][hour]['stc_value']={}
+                
+            self.sign[symbol][hour]['stc_value']={
+                'number':number,
+                'time':time,
+            }
+        except Exception as e:
+            print(str(e))
+            return
+        self.sign_handle(symbol,hour)
+        msg= json.dumps(data)
+        webpush=WebPush()
+        webpush.sendmsg(msg)
+        pass
+
+    '''
+        stc_color信号格式
+        {
+            sign:'STC_COLOR',
+            side:'sell',
+            price:'17000',
+            time:1662308649859,
+            hour:1
+        }
+    '''
+    def sign_stc_color(self,data):
+        if data== None:
+            return
+        symbol=data.get('symbol')
+        sign=data.get('sign')
+        side=data.get('side')
+        time=data.get('time')
+        hour=data.get('hour')
+
+        if symbol==None or sign==None or side==None or time==None or hour==None:
+            print('color 数据错误')
+            return
+        
+        if symbol not in self.sign:
+                self.sign[symbol]={}
+        if hour not in self.sign[symbol]:
+            self.sign[symbol][hour]={}
+            self.sign[symbol][hour]['stc_color']={}
+        self.sign[symbol][hour]['stc_color']={
+            'side':side,
+            'time':time,
+        }
+
+        self.sign_handle(symbol,hour)
+        msg= json.dumps(data)
+        webpush=WebPush()
+        webpush.sendmsg(msg)
+        pass
+
+    def sign_handle(self,symbol,hour):
+        #检测数据是否存在
+        print('handle 1')
+        if symbol not in self.sign or hour not in self.sign[symbol]:
+            return
+        
+        #检测三种信号是否都存在
+        print('handle 2')
+        if 'ut' not in self.sign[symbol][hour] or \
+           'stc_value' not in self.sign[symbol][hour] or\
+           'stc_color' not in self.sign[symbol][hour]:
+           return
+
+        print('handle 3')
+        ut=self.sign[symbol][hour]
+        stc_value=self.sign[symbol][hour]
+        stc_color=self.sign[symbol][hour]
+        side=''
+        print('handle 4')
+        if stc_value['number']>BUY_THRESHOLD and ut['side']==BUY and stc_color['side']==BUY: #买信号
+            side=BUY
+            pass
+        elif stc_value['number']<SELL_THRESHOLD and ut['side']==SELL and stc_color['side']==SELL: #卖信号
+            side=SELL
+            pass
+        else:
+            print('handle 5')
+            return
+        print('handle 6')
+        for item in self.__trades_map:
+                if item['gridtype']==SIGN_POLICY and item['symbol']==symbol and item['signtype']==hour:
+                    item['trade'].create_order(BUY,symbol)
+                    pass
+        webpush=WebPush()
+        webpush.sendmsg(f'{side},{symbol},{hour}')
+        return
             
     def grid_calc(self,data):
         content= data.get('content')  
@@ -606,6 +784,8 @@ class GridManager(Singleton):
                 flag,err_msg=GridTraderHttp.parms_check(json_data)
             elif grid_type==RAIS_GRID:
                 flag,err_msg=HalfGridTrader.parms_check(json_data)
+            elif grid_type==RAIS2_GRID:
+                flag,err_msg=HalfGridVariantTrader.parms_check(json_data)
             else:
                 return http_response(CALC,id,-1,'网格类型不支持')
 
@@ -622,6 +802,8 @@ class GridManager(Singleton):
                 flag,err_msg,data1=GridTraderHttp.grid_calc(api,json_data)
             elif grid_type==RAIS_GRID:
                 flag,err_msg,data1=HalfGridTrader.grid_calc(api,json_data)
+            elif grid_type==RAIS2_GRID:
+                flag,err_msg,data1=HalfGridVariantTrader.grid_calc(api,json_data)
             else:
                 return http_response(CALC,id,-1,'网格类型不支持')
 
@@ -642,35 +824,35 @@ class GridManager(Singleton):
             return http_response(START,'',-1,'网格开启错误,参数错误')
         
         #检查组是否已启用
-        if id in self.trades_map:
+        if id in self.__trades_map:
             return http_response(START,id,-1,'网格开启错误,网格已经开启')
         
         #根据传入的key查找网格配置数据
-        conf_data=self.grids_map.get(id)
+        conf_data=self.__grids_map.get(id)
         if conf_data==None: #没找到数据,返回错误
             return http_response(START,id,-1,'网格开启错误,未根据页面编号找到网格数据')
         
-        #检查组是否已启用
-        # if conf_data['available']==True:
-        #     return http_response(START,id,-1,'网格开启错误,网格已经开启')
+        if(conf_data['content']['GridType']==SIGN_POLICY):
+            print('create_trades')
+            return self.create_trades(id,conf_data['content'])
+        else:
+            #根据组ID与交易所名称找到API数据数组
+            exchange= conf_data['content']['Exchange']
+            groupid=str(conf_data['content']['GroupId'])
+            if exchange not in self.__api_groups or groupid not in self.__api_groups[f'{exchange}']:
+                return http_response(START,id,-1,'网格开启错误,根据组与交易所未找到账号API数据')
 
-        #根据组ID与交易所名称找到API数据数组
-        exchange= conf_data['content']['Exchange']
-        groupid=str(conf_data['content']['GroupId'])
-        if exchange not in self.api_groups or groupid not in self.api_groups[f'{exchange}']:
-            return http_response(START,id,-1,'网格开启错误,根据组与交易所未找到账号API数据')
+            if self.__api_groups[f'{exchange}'][f'{groupid}']['available']==True:
+                return http_response(START,id,-1,'网格开启错误,网格配置的API组已被占用')
 
-        if self.api_groups[f'{exchange}'][f'{groupid}']['available']==True:
-            return http_response(START,id,-1,'网格开启错误,网格配置的API组已被占用')
-
-        apilist=self.api_groups[f'{exchange}'][f'{groupid}']['apilist']
-        api_count=len(apilist)
-        if api_count==0:
-            return http_response(START,id,-1,'网格开启错误,根据组与交易所未找到账号API数据')
-        elif api_count==1:#如果API数组里数据只有一个
-            return self.create_trade(apilist[0],id,conf_data['content'])
-        else:#API数组里数据有多个
-            return self.create_trades(apilist,id,conf_data['content'])
+            apilist=self.__api_groups[f'{exchange}'][f'{groupid}']['apilist']
+            api_count=len(apilist)
+            if api_count==0:
+                return http_response(START,id,-1,'网格开启错误,根据组与交易所未找到账号API数据')
+            elif api_count==1:#如果API数组里数据只有一个
+                return self.create_trade(apilist[0],id,conf_data['content'])
+            # else:#API数组里数据有多个
+            #     return self.create_trades(apilist,id,conf_data['content'])
     
     def create_trade(self,api,id,data):
         #创建网格
@@ -679,6 +861,8 @@ class GridManager(Singleton):
             trader=GridTraderHttp()
         elif data['GridType']==RAIS_GRID:
             trader=HalfGridTrader()
+        elif data['GridType']==RAIS2_GRID:
+            trader=HalfGridVariantTrader()
         else:
             return http_response(START,id,-1,'网格类型错误')
 
@@ -690,11 +874,12 @@ class GridManager(Singleton):
         flag2,errmsg2,orderid=trader.start()
         if flag2==False:
             return http_response(START,id,-1,errmsg2)
-        trader.create_monitor(orderid,self.lock)
+        trader.create_monitor(orderid,self.__lock)
 
         #将网格对象数据保存
-        self.trades_map[id]={
+        self.__trades_map[id]={
             'trader':trader,
+            'gridtype':data['GridType'],
             'exchange':data['Exchange'],
             'groupid':data['GroupId']
             }
@@ -703,72 +888,74 @@ class GridManager(Singleton):
         self.change_available_by_Ex_and_groupid(data['Exchange'],data['GroupId'],True)
         return http_response(START,id,0,'OK')
 
-    def create_trades(self,apilist,id,data):
-        groupid=data['GroupId']
-        exchange=data['Exchange']
+    #信号策略专用
+    def create_trades(self,id,data):
+        groupidlist=data['GroupList']
+        symbol=data['Symbol']
+        signtype=data['SignType']
+        qty=data['Qty']
+        strs= symbol.split('/')
+        if len(strs)!=2:
+            return http_response(START,id,-1,f'品种格式不对{symbol}')
+        
         #批量启动数据
-        factor=float(data['Ratio'])
-        for i in range(0,len(apilist)):
-            factor_mt=factor*i
-
-            #创建网格对象
-            trader={}
-            if data['GridType']==COMM_GRID:
-                trader=GridTraderHttp()
-            elif data['GridType']==RAIS_GRID:
-                trader=HalfGridTrader()
-            else:
+        trade=SignPolicy(qty)
+        apilist=[]
+        for i in range(0,len(groupidlist)):
+            groupid = groupidlist[i]
+            group=self.__group_infos.get(f'{groupid}')
+            if group==None:
                 continue
-
-            flag,errmsg=trader.read_config_by_obj(apilist[i],data,0)
-            if flag==False:
-                self.interrupt_trade(id)
-                return flag,errmsg
-
-            #启动网格
-            flag2,errmsg2,orderid=trader.start(factor_mt)
-            if flag2==False:
-                self.interrupt_trade(id)
-                return flag2,errmsg2
-            trader.create_monitor(orderid,self.lock)
+            if self.__api_groups[group['exchange']][f'{groupid}']['available']==True:
+                #这个API已经被使用了
+                continue
             
-            #初始化traders
-            if id not in self.trades_map:
-                self.trades_map[id]={}
-                self.trades_map[id]['groupid']=groupid
-                self.trades_map[id]['exchange']=exchange
-                self.trades_map[id]['traders']=[]
-
-            #将网格对象存入
-            self.trades_map[id]['traders'].append({
-                'trader':trader,
+            apilist.append({
+                'GroupName':group['name'],
+                'Exchange':group['exchange'],
+                'Content':self.__api_groups[group['exchange']][f'{groupid}']['apilist'][0]
             })
-        self.change_available_by_Ex_and_groupid(exchange,groupid,True)
-        return True,'OK'
+            #不需要将API标记已使用,信号策略和网格策略不一样不用单独使用
+            #将API标记为已使用,
+            # self.change_available_by_Ex_and_groupid(exchange,groupid,True)
+        trade.start(apilist)
+        
+        new_symbol=strs[0]+strs[1]
+        self.__trades_map[id]={
+            'trade':trade,
+            'gridtype':SIGN_POLICY,
+            'symbol':new_symbol,
+            'signtype':signtype
+        }
+        return http_response(START,id,0,'OK')
     
     def interrupt_trade(self,id):
-        if id in self.trades_map:
-            if 'traders' in self.trades_map[id]:
-                count=len(self.trades_map[id]['traders'])
+        if id in self.__trades_map:
+            if 'traders' in self.__trades_map[id]:
+                count=len(self.__trades_map[id]['traders'])
                 for i in range(0,count):
-                    self.trades_map[id]['traders'][i]['trader'].stop()
-            del self.trades_map[id]
+                    self.__trades_map[id]['traders'][i]['trader'].stop()
+            del self.__trades_map[id]
     
-    def  grid_stop(self,data):
+    def grid_stop(self,data):
         id=data.get('id')
         if id==None:
             return http_response(STOP,'',-1,'参数错误')
-        trade=self.trades_map.get(f'{id}')
-        if trade==None:
+        gridobj=self.__trades_map.get(f'{id}')
+        if gridobj==None:
             return http_response(STOP,id,-1,'该网格未开启')
-        if 'traders' in trade:
-            self.change_available_by_Ex_and_groupid(trade['exchange'],trade['groupid'],False)
-            for index in range(0,len(trade['traders'])):
-                trade['traders'][index]['trader'].stop()
-        else:
-            trade['trader'].stop()
-            self.change_available_by_Ex_and_groupid(trade['exchange'],trade['groupid'],False)
-        del self.trades_map[f'{id}']
+        gridobj['trade'].stop()
+        if gridobj['gridtype']!=SIGN_POLICY:
+            self.change_available_by_Ex_and_groupid(gridobj['exchange'],gridobj['groupid'],False)
+
+        # if 'traders' in gridobj:
+        #     self.change_available_by_Ex_and_groupid(gridobj['exchange'],gridobj['groupid'],False)
+        #     for index in range(0,len(gridobj['traders'])):
+        #         gridobj['traders'][index]['trader'].stop()
+        # else:
+        #     gridobj['trader'].stop()
+        #     self.change_available_by_Ex_and_groupid(gridobj['exchange'],gridobj['groupid'],False)
+        del self.__trades_map[f'{id}']
         return http_response(STOP,id,0,'OK')
 
     def grid_update(self,data):
@@ -780,18 +967,18 @@ class GridManager(Singleton):
             return http_response(UPDATE,'',-1,'数据跟新失败,格式错误')
 
         #修改内存数据
-        if id not in self.grids_map:
+        if id not in self.__grids_map:
             title=''
             title1=data.get('title')
             if title1 !=None:
                 title=title1
-            self.grids_map[f'{id}']={
+            self.__grids_map[f'{id}']={
                 'title':title,
                 'content':json_data,
                 'available':False,
             }
         else:
-            self.grids_map[f'{id}']['content']=json_data
+            self.__grids_map[f'{id}']['content']=json_data
         
         #修改数据库数据
         flag,metadata=GridManager.metadata_encode(json_data)
@@ -803,9 +990,9 @@ class GridManager(Singleton):
 
     def grid_del(self,data):
         id=data.get('key')
-        if id in self.grids_map:
+        if id in self.__grids_map:
             #从缓存中删除
-            del self.grids_map[f'{id}']
+            del self.__grids_map[f'{id}']
 
             #从数据库中删除
             sql= 'delete from `tabs` where id=%s'
@@ -842,19 +1029,19 @@ class GridManager(Singleton):
         exchange2=api_data[0]['marketplace']
         if exchange1 != exchange2:
             return http_response(ADDAPI,'',-1,'API添加数据,API数据支持的交易所跟组配置的交易所不匹配')
-        with self.lock:
-            if f'{groupid}' in self.api_groups[f'{exchange1}']:
-                self.api_groups[f'{exchange1}'][f'{groupid}']['apilist'].append({
+        with self.__lock:
+            if f'{groupid}' in self.__api_groups[f'{exchange1}']:
+                self.__api_groups[f'{exchange1}'][f'{groupid}']['apilist'].append({
                     'ApiId': apiid,
                     'Exchange':marketpalce,
                     'API':apidata,
                     'Subaccount':subaccount
                 })
             else:
-                self.api_groups[f'{exchange1}'][f'{exchange1}']={}
-                self.api_groups[f'{exchange1}'][f'{exchange1}']['available']=False
-                self.api_groups[f'{exchange1}'][f'{exchange1}']['apilist']=[]
-                self.api_groups[f'{exchange1}'][f'{exchange1}']['apilist'].append({
+                self.__api_groups[f'{exchange1}'][f'{exchange1}']={}
+                self.__api_groups[f'{exchange1}'][f'{exchange1}']['available']=False
+                self.__api_groups[f'{exchange1}'][f'{exchange1}']['apilist']=[]
+                self.__api_groups[f'{exchange1}'][f'{exchange1}']['apilist'].append({
                     'ApiId': apiid,
                     'Exchange':marketpalce,
                     'API':apidata,
@@ -944,21 +1131,81 @@ class GridManager(Singleton):
             elif strs[0]==CHKST:
                 data=urldata_parse(strs[1])
                 return self.check_start(data)
-
+               
     def post_handler(self,path,body):
         if path==ADD:
-            return self.grid_add(body)
+            data = json.loads(body)
+            return self.grid_add(data)
         elif path==START:
-            return self.grid_start(body)
+            data = json.loads(body)
+            return self.grid_start(data)
         elif path==STOP:
-            return self.grid_stop(body)
+            data = json.loads(body)
+            return self.grid_stop(data)
         elif path==UPDATE:
-            return self.grid_update(body)
+            data = json.loads(body)
+            return self.grid_update(data)
         elif path==DEL:
-            return self.grid_del(body)
+            data = json.loads(body)
+            return self.grid_del(data)
         elif path==ADDAPI:
-            return self.add_api(body)
+            data = json.loads(body)
+            return self.add_api(data)
         elif path==ADDAPIGROUP:
-            return self.bind_api_group(body)
-        
-        
+            data = json.loads(body)
+            return self.bind_api_group(data)
+        elif path==SIGN_UT:
+            data= self.ut_loads(body)
+            return  self.sign_ut(data)
+        elif path==SIGN_STC_VALUE:
+            data=self.value_loads(body)
+            return  self.sign_stc_value(data)
+        elif path==SIGN_STC_COLOR:
+            data=self.color_loads(body)
+            return  self.sign_stc_color(data)
+        else:
+            pass
+    
+    
+    def ut_loads(self,body):  
+        body=str(body)
+        strs=body.split(',')
+        if len(strs)==6:
+            data={
+                'sign':str(strs[0]),
+                'side':strs[1],
+                'symbol':strs[2],
+                'price':strs[3],
+                'time':strs[4],
+                'hour':strs[5]
+            }
+            return data
+        return None        
+
+    def value_loads(self,body):
+        body=str(body)
+        strs=body.split(',')
+        if len(strs)==5:
+            data={
+                'sign':str(strs[0]),
+                'number':int(strs[1]),
+                'symbol':strs[2],
+                'time':strs[3],
+                'hour':strs[4]
+            }
+            return data
+        return None
+    
+    def color_loads(self,body):
+        body=str(body)
+        strs=body.split(',')
+        if len(strs) == 5:
+            data={
+                'sign':str(strs[0]),
+                'side':strs[1],
+                'symbol':strs[2],
+                'time':strs[3],
+                'hour':strs[4]
+            }
+            return data
+        return None

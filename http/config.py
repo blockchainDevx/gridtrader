@@ -6,7 +6,7 @@ from common import Singleton
 class Config(Singleton):
     def Init(self,file):
         try:
-            f = open('.\http\\'+file,mode='r')
+            f = open(file,mode='r')
             data = json.load(f)
             self.mysql=data['mysql']
             self.glob=data['global']

@@ -2,11 +2,14 @@ import ccxt
 from CommonGridTrader import *
 import json
 from Logger import Logger
-
+from common import *
 
 class TraderAPI():
     ex_handler={}
     ex_name=''
+    group_name=''
+    def __init__(self,name=''):
+        self.group_name=name
     #创建交易所句柄
     def CreateExHandler(self,ex,api):
         apidata=api['API']
@@ -36,6 +39,12 @@ class TraderAPI():
                 })
         elif ex==BINANCE:
             self.ex_handler=ccxt.binance({
+                'enableRateLimit': True,
+                'apiKey': apidata['ApiKey'],
+                'secret':apidata['Secret'],
+            })
+        elif ex==GATE:
+            self.ex_handler=ccxt.gateio({
                 'enableRateLimit': True,
                 'apiKey': apidata['ApiKey'],
                 'secret':apidata['Secret'],
@@ -81,11 +90,11 @@ class TraderAPI():
     def CreateOrder(self,symbol,type,side,qty,price=None):
         try:
             order=self.ex_handler.create_order(symbol,type,side,qty,price)
-            return order
+            return order,None
         except Exception as e:
             err_msg=self.err_parser(e)
             Logger().log(f'创建委托,品种:{symbol},市场类型:{type},方向:{side},数量:{qty},价格:{price},失败{err_msg}')
-            return None
+            return None,err_msg
 
     def FetchOrderBook(self,symbol):
         try:

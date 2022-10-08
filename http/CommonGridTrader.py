@@ -7,25 +7,7 @@ from common import Func_DecimalCut
 from Logger import Logger
 
 
-#买卖方向
-BUY='buy'
-SELL='sell'
 
-#市价限价
-MARKET='market'
-LIMIT='limit'
-
-#市场
-OKEX='okex'
-FTX='ftx'
-BINANCE='binance'
-
-#质押币个数
-FTT_PLEDGE_QTY=25
-
-#委托状态
-ORDER_OPEN='open'
-ORDER_CLOSED='closed'
 
 #
 class IGridTrader():

@@ -14,9 +14,40 @@ CHKST='/api/isstart'
 GROUPS='/api/groups'
 ADDAPIGROUP='/api/addapigroup'
 
+SIGN_UT='/api/ut'
+SIGN_STC_VALUE='/api/stc_value'
+SIGN_STC_COLOR='/api/stc_color'
+
+BUY_THRESHOLD=80
+SELL_THRESHOLD=20
+
+
 #网格类型
 COMM_GRID='1'
 RAIS_GRID='2'
+RAIS2_GRID='3'
+SIGN_POLICY='4'
+
+#买卖方向
+BUY='buy'
+SELL='sell'
+
+#市价限价
+MARKET='market'
+LIMIT='limit'
+
+#市场
+OKEX='okex'
+FTX='ftx'
+BINANCE='binance'
+GATE='gate'
+
+#质押币个数
+FTT_PLEDGE_QTY=25
+
+#委托状态
+ORDER_OPEN='open'
+ORDER_CLOSED='closed'
 
 class Singleton():
     _instance_lock=threading.Lock()
@@ -45,6 +76,7 @@ def  urldata_parse(str):
         if len(eles)==2:
             data[f'{eles[0]}']=eles[1]
     return data 
+
 
 def http_response(msgtype,id,errid,errmsg,data={}):
     return json.dumps({

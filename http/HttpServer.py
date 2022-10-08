@@ -9,6 +9,7 @@ from config import Config
 from common import ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY,ADDAPI,CHKST,GROUPS,ADDAPIGROUP
 
 from Logger import Logger
+from WebPush import WebPush
 
 class HTTPHandler(BaseHTTPRequestHandler):
     post_handler=None
@@ -58,12 +59,13 @@ class HTTPHandler(BaseHTTPRequestHandler):
         grid_mgr=GridManager()
         text=grid_mgr.get_handler(path_data)
         
-        text=text.encode('utf8')
-        self.send_response(200)
-        self.end_headers()
-        #self.send_header('Access-Control-Allow-Origin', '*')
+        if text:
+            text=text.encode('utf8')
+            self.send_response(200)
+            self.end_headers()
+            #self.send_header('Access-Control-Allow-Origin', '*')
 
-        self.wfile.write(text)
+            self.wfile.write(text)
 
     def do_POST(self):
         r""" 响应 post 请求，返回 json """
@@ -87,16 +89,17 @@ class HTTPHandler(BaseHTTPRequestHandler):
         response=''
         if len(post_body)!=0:
             try:
-                data = json.loads(post_body)
                 grid_mgr=GridManager()
-                response=grid_mgr.post_handler(self.path,data)
+                response=grid_mgr.post_handler(self.path,post_body)
             except Exception as e:
                 print(str(e))
                 response=http_response(self.path,'',-1,'参数格式错误')
-
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(response.encode())
+        else:
+            print('post body is empty')
+        if response:
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(response.encode())
         
     
     def do_OPTIONS(self):
@@ -119,11 +122,16 @@ if __name__ == '__main__':
     # port = args.port or 8081
     config=Config()
     config.Init('config_copy.json')
-    ip=config.glob['ip'] or '0.0.0.0'
-    port=int(config.glob['port']) or 8081
+    ip=config.glob['http_ip'] or '0.0.0.0'
+    port=int(config.glob['http_port']) or 8081
+    webport= int(config.glob['web_port']) or 8082
+    
     print('Listening %s:%d' % (ip, port))
     Logger().log(f'Listening {ip}:{port}')
     grid_mgr=GridManager()
     grid_mgr.init()
+    webpush=WebPush()
+    webpush.init(webport)
+    webpush.start()
     server = HTTPServer((ip, port), HTTPHandler)
     server.serve_forever()
