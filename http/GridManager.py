@@ -5,6 +5,7 @@ import sys
 
 from WebPush import WebPush
 from SignPolicy import SignPolicy
+from Logger import Logger
 
 sys.path.append('..')
 from common import *
@@ -622,7 +623,7 @@ class GridManager(Singleton):
         time=data.get('time')
         hour=data.get('hour')
         if symbol==None or sign==None or side==None or price==None or time==None or hour==None:
-            print('ut数据错误')
+            Logger().log('ut数据错误')
             return
         
         # print('2')
@@ -643,7 +644,7 @@ class GridManager(Singleton):
         msg= json.dumps(data)
         # print('5')
         webpush=WebPush()
-        webpush.sendmsg(msg)
+        webpush.sendmsg(msg,True)
         # print('4')
         # print(msg)
         pass
@@ -663,7 +664,7 @@ class GridManager(Singleton):
             return
         symbol=data.get('symbol')
         sign=data.get('sign')
-        number=data.get('number')
+        number=int(data.get('number'))
         time=data.get('time')
         hour=data.get('hour')
         if symbol==None or sign==None or number==None or time==None or hour==None:
@@ -688,7 +689,7 @@ class GridManager(Singleton):
         self.sign_handle(symbol,hour)
         msg= json.dumps(data)
         webpush=WebPush()
-        webpush.sendmsg(msg)
+        webpush.sendmsg(msg,True)
         pass
 
     '''
@@ -727,42 +728,42 @@ class GridManager(Singleton):
         self.sign_handle(symbol,hour)
         msg= json.dumps(data)
         webpush=WebPush()
-        webpush.sendmsg(msg)
+        webpush.sendmsg(msg,True)
         pass
 
     def sign_handle(self,symbol,hour):
         #检测数据是否存在
-        print('handle 1')
         if symbol not in self.sign or hour not in self.sign[symbol]:
             return
         
         #检测三种信号是否都存在
-        print('handle 2')
         if 'ut' not in self.sign[symbol][hour] or \
            'stc_value' not in self.sign[symbol][hour] or\
            'stc_color' not in self.sign[symbol][hour]:
            return
 
-        print('handle 3')
-        ut=self.sign[symbol][hour]
-        stc_value=self.sign[symbol][hour]
-        stc_color=self.sign[symbol][hour]
+        ut=self.sign[symbol][hour]['ut']
+        stc_value=self.sign[symbol][hour]['stc_value']
+        stc_color=self.sign[symbol][hour]['stc_color']
         side=''
-        print('handle 4')
-        if stc_value['number']>BUY_THRESHOLD and ut['side']==BUY and stc_color['side']==BUY: #买信号
+        # print('sign '+ json.dumps(self.sign))
+        print('ut '+json.dumps(ut))
+        print('value '+json.dumps(stc_value))
+        print('color '+json.dumps(stc_color))
+        if stc_value['number']==BUY_THRESHOLD and ut['side']==BUY and stc_color['side']==BUY: #买信号
             side=BUY
             pass
-        elif stc_value['number']<SELL_THRESHOLD and ut['side']==SELL and stc_color['side']==SELL: #卖信号
+        elif stc_value['number']==SELL_THRESHOLD and ut['side']==SELL and stc_color['side']==SELL: #卖信号
             side=SELL
             pass
         else:
-            print('handle 5')
             return
-        print('handle 6')
-        for item in self.__trades_map:
-                if item['gridtype']==SIGN_POLICY and item['symbol']==symbol and item['signtype']==hour:
-                    item['trade'].create_order(BUY,symbol)
-                    pass
+        
+        print('handle 1')
+        for item in self.__trades_map.values():
+            if item['gridtype']==SIGN_POLICY and item['symbol']==symbol and item['signtype']==hour:
+                item['trade'].create_order(side)
+                pass
         webpush=WebPush()
         webpush.sendmsg(f'{side},{symbol},{hour}')
         return
@@ -834,7 +835,7 @@ class GridManager(Singleton):
         
         if(conf_data['content']['GridType']==SIGN_POLICY):
             print('create_trades')
-            return self.create_trades(id,conf_data['content'])
+            return self.create_trades(id,conf_data['content'],conf_data['title'])
         else:
             #根据组ID与交易所名称找到API数据数组
             exchange= conf_data['content']['Exchange']
@@ -889,17 +890,17 @@ class GridManager(Singleton):
         return http_response(START,id,0,'OK')
 
     #信号策略专用
-    def create_trades(self,id,data):
+    def create_trades(self,id,data,title):
         groupidlist=data['GroupList']
         symbol=data['Symbol']
         signtype=data['SignType']
-        qty=data['Qty']
+        qty=int(data['Qty'])
         strs= symbol.split('/')
         if len(strs)!=2:
             return http_response(START,id,-1,f'品种格式不对{symbol}')
         
         #批量启动数据
-        trade=SignPolicy(qty)
+        trade=SignPolicy(qty,symbol,title)
         apilist=[]
         for i in range(0,len(groupidlist)):
             groupid = groupidlist[i]
@@ -931,10 +932,10 @@ class GridManager(Singleton):
     
     def interrupt_trade(self,id):
         if id in self.__trades_map:
-            if 'traders' in self.__trades_map[id]:
-                count=len(self.__trades_map[id]['traders'])
+            if 'trader' in self.__trades_map[id]:
+                count=len(self.__trades_map[id]['trader'])
                 for i in range(0,count):
-                    self.__trades_map[id]['traders'][i]['trader'].stop()
+                    self.__trades_map[id]['trader'][i]['trader'].stop()
             del self.__trades_map[id]
     
     def grid_stop(self,data):
@@ -1169,6 +1170,7 @@ class GridManager(Singleton):
     
     def ut_loads(self,body):  
         body=str(body)
+        body=body.split('\'')[1]
         strs=body.split(',')
         if len(strs)==6:
             data={
@@ -1179,11 +1181,13 @@ class GridManager(Singleton):
                 'time':strs[4],
                 'hour':strs[5]
             }
+            print(json.dumps(data))
             return data
         return None        
 
     def value_loads(self,body):
         body=str(body)
+        body=body.split('\'')[1]
         strs=body.split(',')
         if len(strs)==5:
             data={
@@ -1193,11 +1197,13 @@ class GridManager(Singleton):
                 'time':strs[3],
                 'hour':strs[4]
             }
+            print(json.dumps(data))
             return data
         return None
     
     def color_loads(self,body):
         body=str(body)
+        body=body.split('\'')[1]
         strs=body.split(',')
         if len(strs) == 5:
             data={
@@ -1207,5 +1213,6 @@ class GridManager(Singleton):
                 'time':strs[3],
                 'hour':strs[4]
             }
+            print(json.dumps(data))
             return data
         return None

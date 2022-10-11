@@ -1,3 +1,4 @@
+from sqlite3 import Date
 import sys
 sys.path.append('..')
 from common import *
@@ -10,10 +11,11 @@ OPEN='wsconnect'
 PING='wsping'
 PONG='wspong'
 DATA='wsdata'
+SIGN='wssign'
 
 class WebPush(Singleton):
     __thread={}
-    __sockets=set()
+    __sockets=[]
     __port=8082
     __cb={}
     __lock=threading.Lock()
@@ -25,21 +27,24 @@ class WebPush(Singleton):
 
     async def add_socket(self,websocket):
         self.__lock.acquire()
-        self.__sockets.add(websocket)
+        self.__sockets.append(websocket)
         self.__lock.release()
         self.__id=self.__id+1
         await websocket.send(http_response(OPEN,self.__id,0,'OK',str(datetime.datetime.now())))
 
-    def sendmsg(self,data):
+    def sendmsg(self,data,issign=False):
             # print('sendmsg'+data)
             self.__lock.acquire()
             for websocket in self.__sockets:
                 try:
                     self.__id=self.__id+1
-                    ret=asyncio.run_coroutine_threadsafe(websocket.send(http_response(DATA,self.__id,0,"OK",data)),self.__loop)
+                    ret=asyncio.run_coroutine_threadsafe(websocket.send(http_response(DATA if issign==False else SIGN,self.__id,0,"OK",data)),self.__loop)
                     ret.result()
                 except Exception as e:
                     print('ws发送错误'+str(e))
+                    if websocket in self.__sockets:
+                        self.__sockets.remove(websocket)
+                    
             self.__lock.release()
 
 
@@ -71,7 +76,8 @@ class WebPush(Singleton):
                 print('客户端已断开连接')
 
                 self.__lock.acquire()
-                self.__sockets.remove(websocket)
+                if websocket in self.__sockets:
+                    self.__sockets.remove(websocket)
                 self.__lock.release()
 
                 break
