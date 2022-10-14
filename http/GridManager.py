@@ -900,7 +900,7 @@ class GridManager(Singleton):
             return http_response(START,id,-1,f'品种格式不对{symbol}')
         
         #批量启动数据
-        trade=SignPolicy(qty,symbol,title)
+        trade=SignPolicy(qty,symbol,title,qty_min=4)
         apilist=[]
         for i in range(0,len(groupidlist)):
             groupid = groupidlist[i]

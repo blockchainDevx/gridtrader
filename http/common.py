@@ -18,8 +18,26 @@ SIGN_UT='/api/ut'
 SIGN_STC_VALUE='/api/stc_value'
 SIGN_STC_COLOR='/api/stc_color'
 
-BUY_THRESHOLD=80
-SELL_THRESHOLD=20
+BUY_THRESHOLD=20
+SELL_THRESHOLD=80
+
+#结构元素名称
+# TITL_UT='ut'
+# TITL_STC_VALUE='stc_value'
+# TITL_STC_COLOR='stc_color'
+
+# TITL_SYMBOL='symbol'
+# TITL_NUMBER='number'
+# TITL_SIDE='side'
+# TITL_GRIDTYPE='gridtype'
+# TITL_SIGTP='signtype'
+# TITL_SIG='sign'
+# TITL_TR='trade'
+# TITL_CON='content'
+# TITL_TIL='title'
+# TITL_ID='id'
+# TITL_TIME='time'
+# TITL_HOUR='hour'
 
 
 #网格类型
