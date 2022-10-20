@@ -47,6 +47,9 @@ class TraderAPI():
                 'enableRateLimit': True,
                 'apiKey': apidata['ApiKey'],
                 'secret':apidata['Secret'],
+                'options': {
+                    'defaultType': 'swap',
+                },
             })
         else:
             Logger().log(f'配置的交易所{ex}不支持')
