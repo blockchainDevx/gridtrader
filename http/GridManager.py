@@ -6,15 +6,21 @@ import sys
 from WebPush import WebPush
 from SignPolicy import SignPolicy
 from Logger import Logger
+from sendEmal import sendemail
 
 sys.path.append('..')
 from common import *
 from GridTraderHttp import GridTraderHttp 
 from HalfGridTraderHttp import HalfGridTrader
 from HalfGridVariantTraderHttp import HalfGridVariantTrader
-import json
 from sqlhand import SqlHandler
+
+import check_ip
+
 from crypto import *
+
+import time
+import json
 
 '''
 数据库结构
@@ -602,6 +608,17 @@ class GridManager(Singleton):
         else:
             return http_response(CHKST,id,0,'OK')
 
+    def login_record(self,data,clientip):
+        ipdata=check_ip(clientip)
+        if ipdata== None:
+            sendemail('账号 {0} 登录,时间: {1}, IP信息: {2}'.format(data['account'],data['time'],clientip))
+        else:
+            city=ipdata.get('city')
+            region=ipdata.get('region')
+            addr=ipdata.get('addr')
+            data='IP地址: {0},所属城市:{1},地区:{2},地址:{3}'.format(clientip,city,region,addr)
+            sendemail('账号 {0} 登录,时间: {1}, IP信息: {2} '.format(data['account'],data['time'],data))       
+        pass
     '''
         ut信号格式:{
             sign:'UT',
@@ -759,11 +776,16 @@ class GridManager(Singleton):
         else:
             return
         
-        print('handle 1')
+        now=time.time()
         for item in self.__trades_map.values():
             if item['gridtype']==SIGN_POLICY and item['symbol']==symbol and item['signtype']==hour:
-                item['trade'].create_order(side)
+                #每次触发信号有时间间隔,如果在间隔没,不做处理
+                if 'time' not in self.sign[symbol][hour] or int(now -self.sign[symbol][hour]['time'])>SIGN_SECS[hour]:
+                    item['trade'].create_order(side)
+                    self.sign[symbol][hour]['time']=int(now)    #记录触发的时间戳
                 pass
+        
+        
         webpush=WebPush()
         webpush.sendmsg(f'{side},{symbol},{hour}')
         return
@@ -900,7 +922,7 @@ class GridManager(Singleton):
             return http_response(START,id,-1,f'品种格式不对{symbol}')
         
         #批量启动数据
-        trade=SignPolicy(qty,symbol,title,qty_min=4)
+        trade=SignPolicy(qty,symbol,signtype,title,qty_min=4)
         apilist=[]
         for i in range(0,len(groupidlist)):
             groupid = groupidlist[i]
@@ -1108,7 +1130,7 @@ class GridManager(Singleton):
         return http_response(ADDAPIGROUP,'',0,'OK',{'groupid':pk,'groupname':group_name,'exchange':list[0]['marketplace']})
         pass
 
-    def get_handler(self,path):     
+    def get_handler(self,path,clientip):     
         if len(path)==0:
             return http_response(INIT,'',-1,'请求数据格式错误')
             '''
@@ -1132,6 +1154,9 @@ class GridManager(Singleton):
             elif strs[0]==CHKST:
                 data=urldata_parse(strs[1])
                 return self.check_start(data)
+            elif strs[0]==LOGIN:
+                data=urldata_parse(strs[1])
+                return self.login_record(data,clientip)
                
     def post_handler(self,path,body):
         if path==ADD:

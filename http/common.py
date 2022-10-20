@@ -1,6 +1,10 @@
 import json
 import threading
 
+# from WebPush import WebPush
+# from Logger import Logger
+
+LOGIN='/api/login'
 CALC='/api/calc'
 START='/api/start'
 STOP='/api/stop'
@@ -66,6 +70,14 @@ FTT_PLEDGE_QTY=25
 #委托状态
 ORDER_OPEN='open'
 ORDER_CLOSED='closed'
+
+SIGN_SECS={
+    '15M':15000,
+    '30M':30000,
+    '1H':60000,
+    '2H':120000,
+    '4H':240000,
+}
 
 class Singleton():
     _instance_lock=threading.Lock()

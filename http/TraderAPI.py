@@ -5,11 +5,10 @@ from Logger import Logger
 from common import *
 
 class TraderAPI():
-    ex_handler={}
-    ex_name=''
-    group_name=''
     def __init__(self,name=''):
         self.group_name=name
+        self.ex_handler={}
+        self.ex_name=''
     #创建交易所句柄
     def CreateExHandler(self,ex,api):
         apidata=api['API']
@@ -59,6 +58,8 @@ class TraderAPI():
     def FetchTradingFee(self,symbol):
         try:
             fee=self.ex_handler.fetch_trading_fee(symbol)
+            if(self.ex_name==FTX):
+                return 0.0,0.0
             return abs(fee['maker']),abs(fee['taker'])
         except Exception as e:
             strr=str(e)
@@ -93,7 +94,7 @@ class TraderAPI():
             return order,None
         except Exception as e:
             err_msg=self.err_parser(e)
-            Logger().log(f'创建委托,品种:{symbol},市场类型:{type},方向:{side},数量:{qty},价格:{price},失败{err_msg}')
+            # Logger().log(f'创建委托,品种:{symbol},市场类型:{type},方向:{side},数量:{qty},价格:{price},失败{err_msg}')
             return None,err_msg
 
     def FetchOrderBook(self,symbol):

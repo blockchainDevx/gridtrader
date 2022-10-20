@@ -6,7 +6,7 @@ from GridManager import GridManager
 import urllib.request
 from common import http_response
 from config import Config
-from common import ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY,ADDAPI,CHKST,GROUPS,ADDAPIGROUP
+from common import LOGIN,ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY,ADDAPI,CHKST,GROUPS,ADDAPIGROUP
 
 from Logger import Logger
 from WebPush import WebPush
@@ -103,7 +103,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
         
     
     def do_OPTIONS(self):
-        if self.path in (ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY,ADDAPI,CHKST,GROUPS,ADDAPIGROUP):
+        if self.path in (LOGIN,ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY,ADDAPI,CHKST,GROUPS,ADDAPIGROUP):
             self.send_response(200)
             self.send_header('Allow', 'GET, OPTIONS')
             #self.send_header('Access-Control-Allow-Origin', '*')
