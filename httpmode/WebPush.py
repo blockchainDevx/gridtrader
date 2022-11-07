@@ -1,7 +1,7 @@
 from sqlite3 import Date
 import sys
 sys.path.append('..')
-from common import *
+from common.common import *
 import threading
 import asyncio
 import websockets
@@ -52,7 +52,7 @@ class WebPush(Singleton):
 
         while True:
             message=await websocket.recv()
-            print(message)
+            # print(message)
             try:
                 data=json.loads(message)
                 msgtype=data.get('msgtype')

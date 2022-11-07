@@ -7,7 +7,7 @@ import json
 def insert(sql,data):
     try:
         # connect=pymysql.Connect(host='18.162.245.242',user='root',password='gridtrade',database='grid_datas')
-        connect=pymysql.Connect(host='127.0.0.1',user='root',password='password',database='grid_datas')
+        connect=pymysql.Connect(host='127.0.0.1',user='root',password='gridtrade',database='grid_datas')
         cursor=connect.cursor(pymysql.cursors.DictCursor)
         res=cursor.execute(sql,data)
         id=connect.insert_id()
@@ -19,7 +19,7 @@ def insert(sql,data):
         print(str(e))
         return False,None
 
-#参数: exchange,apikey,secret,password,subaccount,groupid
+#参数: exchange,apikey,secret,password,subaccount
 if __name__ == '__main__':
     count =len(sys.argv)
     if count < 4:

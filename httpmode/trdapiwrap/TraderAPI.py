@@ -1,8 +1,8 @@
 import ccxt
-from CommonGridTrader import *
+from policies.CommonGridTrader import *
 import json
-from Logger import Logger
-from common import *
+from common.logger.Logger import Logger
+from common.common import *
 
 class TraderAPI():
     def __init__(self,name=''):
@@ -48,7 +48,7 @@ class TraderAPI():
                 'apiKey': apidata['ApiKey'],
                 'secret':apidata['Secret'],
                 'options': {
-                    'defaultType': 'swap',
+                    'defaultType': 'spot',
                 },
             })
         else:
@@ -81,19 +81,20 @@ class TraderAPI():
     
     #查询账号资金
     def FetchBalance(self):
+        
         try:
             balance=self.ex_handler.fetch_balance()
             # print(json.dumps(balance))
             return balance
         except Exception as e:
             strr=str(e)
-            # print(strr)
+            print(strr)
             Logger().log(f'查询账号资金失败:{strr}')
             return None
 
-    def CreateOrder(self,symbol,type,side,qty,price=None):
+    def CreateOrder(self,symbol,type,side,qty,price=None,parms={}):
         try:
-            order=self.ex_handler.create_order(symbol,type,side,qty,price)
+            order=self.ex_handler.create_order(symbol,type,side,qty,price,parms)
             return order,None
         except Exception as e:
             err_msg=self.err_parser(e)
@@ -142,6 +143,8 @@ class TraderAPI():
             return TraderAPI.OKEX_err_parser(e)
         elif self.ex_name==FTX:
             return TraderAPI.FTX_err_parser(e)
+        else:
+            return str(e)
 
     @staticmethod
     def FTX_err_parser(e):

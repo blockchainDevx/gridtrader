@@ -1,12 +1,12 @@
 from pickle import MARK
 #from zoneinfo import available_timezones
-from CommonGridTrader import *
+from policies.CommonGridTrader import *
 import sys
 import time
 
-from TraderAPI import TraderAPI
-from Logger import Logger
-from common import *
+from trdapiwrap.TraderAPI import TraderAPI
+from common.logger.Logger import Logger
+from common.common import *
 
 '''
 数据结构:

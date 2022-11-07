@@ -120,3 +120,9 @@ def http_response(msgtype,id,errid,errmsg,data={}):
 #小数点保留位数,去尾
 def Func_DecimalCut(f,n):
     return float(int(f*10**n)/10**n)
+
+
+# def Record(msg):
+#     print(msg)
+#     Logger().log(msg)
+#     WebPush().sendmsg(msg)

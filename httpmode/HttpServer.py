@@ -1,14 +1,13 @@
-from GridTraderHttp import *
+# from policies.GridTraderHttp import *
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import json
 from urllib.parse import urlparse
 from GridManager import GridManager 
 import urllib.request
-from common import http_response
-from config import Config
-from common import LOGIN,ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY,ADDAPI,CHKST,GROUPS,ADDAPIGROUP
+from common.common import http_response
+from common.configer.config import Config
+from common.common import LOGIN,ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY,ADDAPI,CHKST,GROUPS,ADDAPIGROUP
 
-from Logger import Logger
+from common.logger.Logger import Logger
 from WebPush import WebPush
 
 class HTTPHandler(BaseHTTPRequestHandler):
@@ -56,8 +55,12 @@ class HTTPHandler(BaseHTTPRequestHandler):
         # text = text.encode('utf8')
         # html = self.text_to_html(req_head).encode('utf8')
         path_data= urllib.request.unquote(self.path)
+        # print(f'GET {path_data}')
+        clientip=self.address_string()
+        print(self.client_address[0])
+        print(self.address_string())
         grid_mgr=GridManager()
-        text=grid_mgr.get_handler(path_data)
+        text=grid_mgr.get_handler(path_data,clientip)
         
         if text:
             text=text.encode('utf8')
@@ -84,7 +87,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
 
         content_len = int(self.headers['Content-Length'])   
         post_body = self.rfile.read(content_len)
-        print(f'POST: {self.path},{post_body}')
+        # print(f'POST: {self.path},{post_body}')
         data={}
         response=''
         if len(post_body)!=0:

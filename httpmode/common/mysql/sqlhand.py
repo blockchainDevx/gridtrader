@@ -1,5 +1,5 @@
 import pymysql
-from config import Config
+from ..configer.config import Config
 
 class SqlHandler():
     @staticmethod

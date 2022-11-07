@@ -1,7 +1,5 @@
 import json
-import threading
-import os
-from common import Singleton
+from ..common import Singleton
 
 class Config(Singleton):
     def Init(self,file):

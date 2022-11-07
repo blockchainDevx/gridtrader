@@ -1,4 +1,4 @@
-from common import Singleton
+from ..common import Singleton
 from datetime import datetime
 import pytz
 

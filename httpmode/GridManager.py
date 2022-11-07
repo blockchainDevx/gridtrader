@@ -4,20 +4,20 @@ import threading
 import sys
 
 from WebPush import WebPush
-from SignPolicy import SignPolicy
-from Logger import Logger
-from sendEmal import sendemail
+from policies.SignPolicy import SignPolicy
+from common.logger.Logger import Logger
+from common.sendEmal import sendemail
 
 sys.path.append('..')
-from common import *
-from GridTraderHttp import GridTraderHttp 
-from HalfGridTraderHttp import HalfGridTrader
-from HalfGridVariantTraderHttp import HalfGridVariantTrader
-from sqlhand import SqlHandler
+from common.common import *
+from policies.GridTraderHttp import GridTraderHttp 
+from policies.HalfGridTraderHttp import HalfGridTrader
+from policies.HalfGridVariantTraderHttp import HalfGridVariantTrader
+from common.mysql.sqlhand import SqlHandler
 
-import check_ip
+from common.ip.check_ip import check_ip
 
-from crypto import *
+from common.crypto.crypto import Encode,Decode
 
 import time
 import json
@@ -315,7 +315,7 @@ class GridManager(Singleton):
         sql='select * from `tabs`'
         flag,count,res=SqlHandler.Query(sql)
         if flag==True:
-            for i in range(0,count):
+            for i in range(0,len(res)):
                 metadata=res[i].get('metadata')
                 id=res[i].get('id')
                 title=res[i].get('title')
@@ -586,7 +586,7 @@ class GridManager(Singleton):
             return http_response(GROUPS,'',-1,'数据库获取不到组信息')
 
         data=[]
-        for i in range(0,count):
+        for i in range(0,len(list)):
             id=list[i].get('groupid')
             name=list[i].get('groupname')
             exchange=list[i].get('exchange')
@@ -609,6 +609,7 @@ class GridManager(Singleton):
             return http_response(CHKST,id,0,'OK')
 
     def login_record(self,data,clientip):
+        # print(json.dumps(data))
         ipdata=check_ip(clientip)
         if ipdata== None:
             sendemail('账号 {0} 登录,时间: {1}, IP信息: {2}'.format(data['account'],data['time'],clientip))
@@ -616,8 +617,10 @@ class GridManager(Singleton):
             city=ipdata.get('city')
             region=ipdata.get('region')
             addr=ipdata.get('addr')
-            data='IP地址: {0},所属城市:{1},地区:{2},地址:{3}'.format(clientip,city,region,addr)
-            sendemail('账号 {0} 登录,时间: {1}, IP信息: {2} '.format(data['account'],data['time'],data))       
+            msg1='IP地址: {0},所属城市:{1},地区:{2},地址:{3}'.format(clientip,city,region,addr)
+            msg= '账号 {0} 登录,时间: {1}, IP信息: {2} '.format(data['account'],data['time'],msg1)
+            sendemail(msg)
+            
         pass
     '''
         ut信号格式:{
@@ -639,6 +642,7 @@ class GridManager(Singleton):
         price=data.get('price')
         time=data.get('time')
         hour=data.get('hour')
+        # print('1')
         if symbol==None or sign==None or side==None or price==None or time==None or hour==None:
             Logger().log('ut数据错误')
             return
@@ -764,9 +768,9 @@ class GridManager(Singleton):
         stc_color=self.sign[symbol][hour]['stc_color']
         side=''
         # print('sign '+ json.dumps(self.sign))
-        print('ut '+json.dumps(ut))
-        print('value '+json.dumps(stc_value))
-        print('color '+json.dumps(stc_color))
+        # print('ut '+json.dumps(ut))
+        # print('value '+json.dumps(stc_value))
+        # print('color '+json.dumps(stc_color))
         if stc_value['number']==BUY_THRESHOLD and ut['side']==BUY and stc_color['side']==BUY: #买信号
             side=BUY
             pass
@@ -783,11 +787,12 @@ class GridManager(Singleton):
                 if 'time' not in self.sign[symbol][hour] or int(now -self.sign[symbol][hour]['time'])>SIGN_SECS[hour]:
                     item['trade'].create_order(side)
                     self.sign[symbol][hour]['time']=int(now)    #记录触发的时间戳
+                    webpush=WebPush()
+                    key=item['trade'].__keyname
+                    webpush.sendmsg(f'策略{key}触发 {side} 信号,品种 {symbol},信号类别 {hour} ,服务器时间戳 {int(now)}')
                 pass
         
         
-        webpush=WebPush()
-        webpush.sendmsg(f'{side},{symbol},{hour}')
         return
             
     def grid_calc(self,data):
@@ -856,7 +861,6 @@ class GridManager(Singleton):
             return http_response(START,id,-1,'网格开启错误,未根据页面编号找到网格数据')
         
         if(conf_data['content']['GridType']==SIGN_POLICY):
-            print('create_trades')
             return self.create_trades(id,conf_data['content'],conf_data['title'])
         else:
             #根据组ID与交易所名称找到API数据数组
@@ -941,15 +945,21 @@ class GridManager(Singleton):
             #不需要将API标记已使用,信号策略和网格策略不一样不用单独使用
             #将API标记为已使用,
             # self.change_available_by_Ex_and_groupid(exchange,groupid,True)
+            
+        
         trade.start(apilist)
         
         new_symbol=strs[0]+strs[1]
-        self.__trades_map[id]={
+        trd_data={
             'trade':trade,
             'gridtype':SIGN_POLICY,
             'symbol':new_symbol,
             'signtype':signtype
         }
+        self.__trades_map[id]=trd_data
+        # for item in self.__trades_map:
+        #     print(f'trade:{item},')
+            
         return http_response(START,id,0,'OK')
     
     def interrupt_trade(self,id):
@@ -1159,6 +1169,8 @@ class GridManager(Singleton):
                 return self.login_record(data,clientip)
                
     def post_handler(self,path,body):
+        if path not in  (SIGN_UT,SIGN_STC_COLOR,SIGN_STC_VALUE):
+            Logger().log('POST:{0},{1}'.format(path,body))
         if path==ADD:
             data = json.loads(body)
             return self.grid_add(data)
@@ -1191,6 +1203,7 @@ class GridManager(Singleton):
             return  self.sign_stc_color(data)
         else:
             pass
+        
     
     
     def ut_loads(self,body):  

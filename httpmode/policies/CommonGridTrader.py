@@ -2,12 +2,9 @@ import threading
 import ccxt
 import sys
 
-from common import Func_DecimalCut
+from common.common import Func_DecimalCut
 
-from Logger import Logger
-
-
-
+from common import Logger
 
 #
 class IGridTrader():

@@ -84,7 +84,7 @@ class WebsocketServer:
                     #print('return: '+ret_str)
                     await websocket.send(ret_str)
                 elif js_data['msgtype']=='start':
-                    flag,errmsg=self.start_grid(js_data['id'],websocket)
+                    flag,errmsg=self.start_grid(js_data['id'],websocket)                       
                     retstr=''
                     if flag==True:
                         retstr= WebsocketServer.obj_to_json('start',0,'ok',{},js_data['id'])
