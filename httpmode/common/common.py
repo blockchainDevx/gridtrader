@@ -72,11 +72,11 @@ ORDER_OPEN='open'
 ORDER_CLOSED='closed'
 
 SIGN_SECS={
-    '15M':15000,
-    '30M':30000,
-    '1H':60000,
-    '2H':120000,
-    '4H':240000,
+    '15M':900,
+    '30M':1800,
+    '1H':3600,
+    '2H':7200,
+    '4H':14400,
 }
 
 class Singleton():

@@ -787,11 +787,11 @@ class GridManager(Singleton):
                 if 'time' not in self.sign[symbol][hour] or int(now -self.sign[symbol][hour]['time'])>SIGN_SECS[hour]:
                     item['trade'].create_order(side)
                     self.sign[symbol][hour]['time']=int(now)    #记录触发的时间戳
-                    webpush=WebPush()
-                    key=item['trade'].__keyname
-                    webpush.sendmsg(f'策略{key}触发 {side} 信号,品种 {symbol},信号类别 {hour} ,服务器时间戳 {int(now)}')
+                    # webpush=WebPush()
+                    # key=item['trade'].__keyname
+                    # webpush.sendmsg(f'策略{key}触发 {side} 信号,品种 {symbol},信号类别 {hour} ,服务器时间戳 {int(now)}')
                 pass
-        
+            
         
         return
             
@@ -921,12 +921,32 @@ class GridManager(Singleton):
         symbol=data['Symbol']
         signtype=data['SignType']
         qty=int(data['Qty'])
+        qtyres=int(data['QtyReserve'])
+        prres=int(data['PriceResrve'])
+        stop=float(data['Stop'])
         strs= symbol.split('/')
         if len(strs)!=2:
             return http_response(START,id,-1,f'品种格式不对{symbol}')
         
         #批量启动数据
-        trade=SignPolicy(qty,symbol,signtype,title,qty_min=4)
+        trade=SignPolicy()
+        flag=trade.init({
+            'symbol':symbol,
+            'keyName': title,
+            'qtyRes':qtyres,
+            'signType':signtype,
+            'qty':qty
+        } if stop ==0 else {
+            'symbol':symbol,
+            'keyName': title,
+            'qtyRes':qtyres,
+            'signType':signtype,
+            'qty':qty,
+            'priceRes':prres,
+            'stopPer':stop
+        })
+        if flag == False:
+            return http_response(START,id,-1,'信号策略数据错误')
         apilist=[]
         for i in range(0,len(groupidlist)):
             groupid = groupidlist[i]

@@ -5,13 +5,33 @@ from WebPush import WebPush
 from common.logger.Logger import Logger
 
 class SignPolicy(IGridTrader):
-    def __init__(self,qty,symbol,signtype,key,qty_min):
-        self.__symbol=symbol
-        self.__qty=int(qty)
-        self.__keyname=key
-        self.__qty_res=qty_min
+    def __init__(self,params):
         self.__apis=[]
-        self.__signtype=signtype
+        self.__symbol=''
+        self.__keyname=''
+        self.__signtype=''
+        self.__qty_res=4
+        self.__price_res=4
+        self.__stop_percent=0
+        
+
+    def init(self,params):
+        if 'symbol' not in params or \
+            'keyName' not in params or \
+            'qtyRes' not in params or \
+            'signType' not in params:
+                return False
+        self.__symbol=params['symbol']
+        if 'qty' in params:
+            self.__qty=int(params['qty'])
+        self.__keyname=params['keyName']
+        self.__signtype=params['signType']
+        self.__qty_res=params['qtyRes']
+        if 'stopPer' in params:
+            self.__stop_percent=params['stopPer']
+            self.__price_res=self.__qty_res
+        if 'priceRes' in params:
+            self.__price_res=params['priceRes']
         symbollist=self.__symbol.split('/')
         if len(symbollist)==2:
             self.__cointype=symbollist[0]
@@ -19,8 +39,8 @@ class SignPolicy(IGridTrader):
         else:
             self.__cointype=''
             self.__amounttype=''
-
-
+        return True
+        
     #网格开始
     def start(self,apilist):
         for item in apilist:
@@ -92,7 +112,16 @@ class SignPolicy(IGridTrader):
                     SignPolicy.Record(f'账号 {tradehd.group_name} 查询{self.__symbol}最新价失败')
                     return
                 qty= Func_DecimalCut(amount/tick['last'],self.__qty_res)
-                order,err_msg=tradehd.CreateOrder(self.__symbol,MARKET,BUY,qty)
+                
+                #配置了止损比例,根据当前价计算出止损价
+                stop_price=0.0
+                if self.__stop_percent >0 and self.__stop_percent < 1:
+                    stop_price=Func_DecimalCut(tick['last']*(1-self.__stop_percent),self.__price_res)
+                
+                order,err_msg=tradehd.CreateOrder(self.__symbol,MARKET,BUY,qty) if stop_price == 0 else \
+                    tradehd.CreateOrder(self.__symbol,MARKET,BUY,qty,{
+                        'stopPrice':stop_price
+                    })
                 msg=''
                 if order==None:
                     msg='失败,原因为:{0}'.format(err_msg)
@@ -142,7 +171,16 @@ class SignPolicy(IGridTrader):
                     return
                 last=tick['last']
                 qty= Func_DecimalCut(amount/last,self.__qty_res)
-                order,err_msg=tradehd.CreateOrder(self.__symbol,LIMIT,BUY,qty,last)
+                
+                #配置了止损比例,根据当前价计算出止损价
+                stop_price=0.0
+                if self.__stop_percent >0 and self.__stop_percent < 1:
+                    stop_price=Func_DecimalCut(last*(1-self.__stop_percent),self.__price_res)
+                
+                order,err_msg=tradehd.CreateOrder(self.__symbol,LIMIT,BUY,qty,last) if stop_price == 0 else \
+                    tradehd.CreateOrder(self.__symbol,LIMIT,BUY,qty,last,{
+                        'stopPrice':stop_price
+                    })
                 msg=''
                 if order==None:
                     msg='失败,原因为:{0}'.format(err_msg)
