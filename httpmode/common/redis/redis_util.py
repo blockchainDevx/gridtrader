@@ -19,5 +19,13 @@ def get(key):
     rs=redis_client()
     value=rs.get(key)
     redis_close(rs)
-    return value
+    return value.decode('utf-8')
     
+def keys():
+    rs=redis_client()
+    values=rs.keys('*')
+    redis_close()
+    values2=set()
+    for value in values:
+        values2.append(value.decode('utf-8'))
+    return values2

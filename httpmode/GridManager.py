@@ -4,6 +4,7 @@ import threading
 import sys
 
 from WebPush import WebPush
+from httpmode.common.redis import redis_util
 from policies.SignPolicy import SignPolicy
 from common.logger.Logger import Logger
 from common.sendEmal import sendemail
@@ -18,6 +19,7 @@ from common.mysql.sqlhand import SqlHandler
 from common.ip.check_ip import check_ip
 
 from common.crypto.crypto import Encode,Decode
+from common.redis import *
 
 import time
 import json
@@ -46,7 +48,7 @@ api_groups:{
                 'ApiId':"",
                 'Exchange':marketpalce,
                 'API':{
-                    "ApiKey":"",
+                    "ApiKey":"",   
                     "Secret":"",
                     "Password":"",
                 },
@@ -384,6 +386,12 @@ class GridManager(Singleton):
                 'apiid_arr':arr
             }
         return groups
+    
+    #从redis中获取数据
+    def get_signs(self):
+        values= redis_util.keys()
+         
+        pass
     
     #api数据与组数据聚合
     def api_groups_compose(self,apis,groups):
