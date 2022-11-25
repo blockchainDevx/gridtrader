@@ -1,11 +1,9 @@
 from policies.CommonGridTrader import *
 from trdapiwrap.TraderAPI import TraderAPI
 from common.common import *
-from WebPush import WebPush
-from common.logger.Logger import Logger
 
 class SignPolicy(IGridTrader):
-    def __init__(self,params):
+    def __init__(self):
         self.__apis=[]
         self.__symbol=''
         self.__keyname=''
@@ -13,6 +11,7 @@ class SignPolicy(IGridTrader):
         self.__qty_res=4
         self.__price_res=4
         self.__stop_percent=0
+        self.__lastside=SELL #对象初始化时上次的买卖信号设置为卖
         
 
     def init(self,params):
@@ -53,46 +52,54 @@ class SignPolicy(IGridTrader):
                 'exchange':item['Exchange'],
                 'taker':taker})
             
-            SignPolicy.Record(f'=====网页 {self.__keyname} 启动,账号:{groupname},'\
+            RecordData(f'=====网页 {self.__keyname} 启动,账号:{groupname},'\
                 f'品种为:{self.__symbol},信号类别为:{self.__signtype}======')
         pass
  
     #开启监视器
     def create_order(self,side, price=0):
-        SignPolicy.Record(f'---------网页 {self.__keyname} 触发信号---------')
-        SignPolicy.Record(f'信号触发:方向为:{side},品种:{self.__symbol},信号类别为:{self.__signtype}')
+        RecordData(f'---------网页 {self.__keyname} 触发信号---------')
+        RecordData(f'信号触发:方向为:{side},品种:{self.__symbol},信号类别为:{self.__signtype}')
         for item in self.__apis:
             if item['exchange']== GATE:
                 self.trade_by_ammount_gate(side,item)
+            elif item['exchange'] == OKEX:
+                self.trade_by_ammount_ok(side,item)
             else:
                 self.trade_by_ammount_normal(side,item)
             pass
         pass
-        SignPolicy.Record(f'------------------------------------')
+        RecordData(f'------------------------------------')
 
     def trade_by_qty(self,side,item):
         tradehd=item.get('traderhd')
         taker=item.get('taker')
         if tradehd==None or taker==None:
             return
+        
         try:
-            if side==BUY:
-                        #买
+            if side==BUY:#买
+                balance=tradehd.FetchBalance()                
                 order,err_msg=tradehd.CreateOrder(self.__symbol,MARKET,BUY,self.__qty)
+                msg=''
                 if order==None:
-                    SignPolicy.Record(f'账号 {tradehd.group_name} 买入失败,原因为: {err_msg}')
+                    msg='失败,原因为:{0}'.format(err_msg)
                 else:
-                    SignPolicy.Record(f'账号 {tradehd.group_name} 买入成功,买入币数: {self.__qty}')
+                    msg='成功,委托号为{0}'.format(order['id'])
+                RecordData('账号 {0} 买入 {1},买入数量为 {2},当前账号的资金为 {3},委托号为 {4}'.\
+                                format(tradehd.group_name,msg,self.__qty,balance))
             else:
                 #卖,查出来全卖掉
                 sell_qty=Func_DecimalCut(self.__qty*(1-taker),self.__qty_res)
                 order,err_msg=tradehd.CreateOrder(self.__symbol,MARKET,SELL,sell_qty)
+                msg=''
                 if order==None:
-                    SignPolicy.Record(f'账号 {tradehd.group_name} 卖出失败,原因为: {err_msg}')
+                    msg='失败,原因为:{0}'.format(err_msg)
                 else:
-                    SignPolicy.Record(f'账号 {tradehd.group_name} 卖出成功,卖出币数: {sell_qty}')
+                    msg='成功,委托号为{0}'.format(order['id'])
+                RecordData(f'账号 {tradehd.group_name} 卖出{msg},卖出币数: {sell_qty}')
         except Exception as e:
-            SignPolicy.Record(f'{tradehd.group_name} 调用失败,原因为: {str(e)}')
+            RecordData(f'{tradehd.group_name} 调用失败,原因为: {str(e)}')
     
     def trade_by_ammount_normal(self,side,item):
         tradehd=item.get('traderhd')
@@ -102,14 +109,14 @@ class SignPolicy(IGridTrader):
         if balance ==None:
             return
         try:
-            if side==BUY:#买
+            if side==BUY and self.__lastside == SELL:#信号为买入,上次的信号为卖出
                 amount= balance['total'][self.__amounttype]
                 if amount<=0:
-                    SignPolicy.Record(f'账号 {tradehd.group_name} 买入失败,原因是: 账号没资金')
+                    RecordData(f'账号 {tradehd.group_name} 买入失败,原因是: 账号没资金')
                     return
                 tick=tradehd.FetchTicker(self.__symbol)
                 if tick==None:
-                    SignPolicy.Record(f'账号 {tradehd.group_name} 查询{self.__symbol}最新价失败')
+                    RecordData(f'账号 {tradehd.group_name} 查询{self.__symbol}最新价失败')
                     return
                 qty= Func_DecimalCut(amount/tick['last'],self.__qty_res)
                 
@@ -118,18 +125,18 @@ class SignPolicy(IGridTrader):
                 if self.__stop_percent >0 and self.__stop_percent < 1:
                     stop_price=Func_DecimalCut(tick['last']*(1-self.__stop_percent),self.__price_res)
                 
-                order,err_msg=tradehd.CreateOrder(self.__symbol,MARKET,BUY,qty) if stop_price == 0 else \
-                    tradehd.CreateOrder(self.__symbol,MARKET,BUY,qty,{
+                order,err_msg=tradehd.CreateOrder(self.__symbol,LIMIT,BUY,qty) if stop_price == 0 else \
+                    tradehd.CreateOrder(self.__symbol,MARKET,BUY,qty,params={
                         'stopPrice':stop_price
                     })
                 msg=''
                 if order==None:
                     msg='失败,原因为:{0}'.format(err_msg)
                 else:
-                    msg='成功'
-                SignPolicy.Record('账号 {0} 买入 {1},买入数量为 {2},当前的价格为 {3},当前账号的资金为 {4}'.
+                    msg='成功,委托号为{0}'.format(order['id'])
+                RecordData('账号 {0} 买入 {1},买入数量为 {2},当前的价格为 {3},当前账号的资金为 {4}'.
                                   format(tradehd.group_name,msg,qty,tick['last'],amount))                                           
-            else:
+            elif side == SELL and self.__lastside == BUY: #信号为卖,上次的信号为买入
                 coin=''
                 symbollist=self.__symbol.split('/')
                 if len(symbollist)>1:
@@ -142,12 +149,73 @@ class SignPolicy(IGridTrader):
                     if order==None:
                         msg='失败,原因为:{0}'.format(err_msg)
                     else:
-                        msg='成功'
+                        msg='成功,委托号为{0}'.format(order['id'])
                     tick=tradehd.FetchTicker(self.__symbol)
-                    SignPolicy.Record('账号 {0} 卖出 {1},全卖,卖出数量为 {2},当前价格为 {3}'.
+                    RecordData('账号 {0} 卖出 {1},全卖,卖出数量为 {2},当前价格为 {3},委托号为 {4}'.
                                       format(tradehd.group_name,msg,symbol_qty,tick['last']))
         except Exception as e:
-            SignPolicy.Record(f'{tradehd.group_name} 调用失败,原因为: {str(e)}')
+            RecordData(f'{tradehd.group_name} 调用失败,原因为: {str(e)}')
+        #记录本次的买卖方向,供下次信号接入提供参考
+        self.__lastside=side
+        
+    def trade_by_ammount_ok(self,side,item):
+        tradehd=item.get('traderhd')
+        if tradehd==None:
+            return
+        balance=tradehd.FetchBalance()
+        if balance ==None:
+            return
+        try:
+            if side==BUY and self.__lastside == SELL:#信号为买入,上次的信号为卖出
+                amount= balance['total'][self.__amounttype]
+                if amount<=0:
+                    RecordData(f'账号 {tradehd.group_name} 买入失败,原因是: 账号没资金')
+                    return
+                tick=tradehd.FetchTicker(self.__symbol)
+                if tick==None:
+                    RecordData(f'账号 {tradehd.group_name} 查询{self.__symbol}最新价失败')
+                    return
+                qty= Func_DecimalCut(amount/tick['last'],self.__qty_res)
+                
+                #配置了止损比例,根据当前价计算出止损价
+                stop_price=0.0
+                if self.__stop_percent >0 and self.__stop_percent < 1:
+                    stop_price=Func_DecimalCut(tick['last']*(1-self.__stop_percent),self.__price_res)
+                
+                order,err_msg=tradehd.CreateOrder(self.__symbol,LIMIT,BUY,qty) if stop_price == 0 else \
+                    tradehd.CreateOrder(self.__symbol,MARKET,BUY,qty,params={
+                        'sz':qty,
+                        'slTriggerPx':stop_price,
+                        'slOrdPx':-1
+                    })
+                msg=''
+                if order==None:
+                    msg='失败,原因为:{0}'.format(err_msg)
+                else:
+                    msg='成功,委托号为{0}'.format(order['id'])
+                RecordData('账号 {0} 买入 {1},买入数量为 {2},当前的价格为 {3},当前账号的资金为 {4},设置的止损价格为{5}'.
+                                  format(tradehd.group_name,msg,qty,tick['last'],amount,stop_price))                                           
+            elif side == SELL and self.__lastside == BUY: #信号为卖,上次的信号为买入
+                coin=''
+                symbollist=self.__symbol.split('/')
+                if len(symbollist)>1:
+                    coin=symbollist[0]
+                balance=tradehd.FetchBalance()
+                if balance!=None and len(coin)>0:
+                    symbol_qty=float(balance['total'][coin])
+                    order,err_msg = tradehd.CreateOrder(self.__symbol,MARKET,SELL,symbol_qty)
+                    msg=''
+                    if order==None:
+                        msg='失败,原因为:{0}'.format(err_msg)
+                    else:
+                        msg='成功,委托号为{0}'.format(order['id'])
+                    tick=tradehd.FetchTicker(self.__symbol)
+                    RecordData('账号 {0} 卖出 {1},全卖,卖出数量为 {2},当前价格为 {3},委托号为 {4}'.
+                                      format(tradehd.group_name,msg,symbol_qty,tick['last']))
+        except Exception as e:
+            RecordData(f'{tradehd.group_name} 调用失败,原因为: {str(e)}')
+        #记录本次的买卖方向,供下次信号接入提供参考
+        self.__lastside=side
             
     '''
     gate现货只支持限价单
@@ -163,11 +231,11 @@ class SignPolicy(IGridTrader):
             if side==BUY:#买
                 amount= balance['total'][self.__amounttype]
                 if amount<=0:
-                    SignPolicy.Record(f'账号 {tradehd.group_name} 买入失败,原因是: 账号没资金')
+                    RecordData(f'账号 {tradehd.group_name} 买入失败,原因是: 账号没资金')
                     return
                 tick=tradehd.FetchTicker(self.__symbol)
                 if tick==None:
-                    SignPolicy.Record(f'账号 {tradehd.group_name} 查询{self.__symbol}最新价失败')
+                    RecordData(f'账号 {tradehd.group_name} 查询{self.__symbol}最新价失败')
                     return
                 last=tick['last']
                 qty= Func_DecimalCut(amount/last,self.__qty_res)
@@ -186,7 +254,7 @@ class SignPolicy(IGridTrader):
                     msg='失败,原因为:{0}'.format(err_msg)
                 else:
                     msg='成功'
-                SignPolicy.Record('账号 {0} 买入 {1},买入数量为 {2},当前的价格为 {3},当前账号的资金为 {4}'.
+                RecordData('账号 {0} 买入 {1},买入数量为 {2},当前的价格为 {3},当前账号的资金为 {4}'.
                                   format(tradehd.group_name,msg,qty,tick['last'],amount))                                           
             else:
                 coin=''
@@ -200,7 +268,7 @@ class SignPolicy(IGridTrader):
                     symbol_qty=float(balance['total'][coin])
                     tick=tradehd.FetchTicker(self.__symbol)
                     if tick==None:
-                        SignPolicy.Record(f'账号 {tradehd.group_name} 查询{self.__symbol}最新价失败')
+                        RecordData(f'账号 {tradehd.group_name} 查询{self.__symbol}最新价失败')
                         return
                     last=tick['last']
                     order,err_msg = tradehd.CreateOrder(self.__symbol,LIMIT,SELL,symbol_qty,last)
@@ -209,10 +277,10 @@ class SignPolicy(IGridTrader):
                         msg='失败,原因为:{0}'.format(err_msg)
                     else:
                         msg='成功'
-                    SignPolicy.Record('账号 {0} 卖出 {1},全卖,卖出数量为 {2},卖出价格为 {3}'.
+                    RecordData('账号 {0} 卖出 {1},全卖,卖出数量为 {2},卖出价格为 {3}'.
                                       format(tradehd.group_name,msg,symbol_qty,last))
         except Exception as e:
-            SignPolicy.Record(f'{tradehd.group_name} 调用失败,原因为: {str(e)}')
+            RecordData(f'{tradehd.group_name} 调用失败,原因为: {str(e)}')
         pass
     
             
@@ -220,8 +288,6 @@ class SignPolicy(IGridTrader):
     def stop(self):
         pass
     
-    @staticmethod
-    def Record(msg):
-        print(msg)
-        Logger().log(msg)
-        WebPush().sendmsg(msg)
+def RecordData(msg):
+    Record(msg,WS_DATA,LOG_ALL)
+    

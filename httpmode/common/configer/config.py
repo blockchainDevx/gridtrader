@@ -1,5 +1,8 @@
 import json
-from ..common import Singleton
+import sys
+sys.path.append('..')
+
+from ..single import Singleton
 
 class Config(Singleton):
     def Init(self,file):

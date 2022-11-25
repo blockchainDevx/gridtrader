@@ -1,7 +1,7 @@
 import ccxt
 from policies.CommonGridTrader import *
 import json
-from common.logger.Logger import Logger
+from common.logger.Log import log
 from common.common import *
 
 class TraderAPI():
@@ -52,7 +52,7 @@ class TraderAPI():
                 },
             })
         else:
-            Logger().log(f'配置的交易所{ex}不支持')
+            log(f'配置的交易所{ex}不支持')
             return False
         self.ex_name=ex
         return True
@@ -66,7 +66,7 @@ class TraderAPI():
             return abs(fee['maker']),abs(fee['taker'])
         except Exception as e:
             strr=str(e)
-            Logger().log(f'交易所连接失败:{strr}')
+            log(f'交易所连接失败:{strr}')
             return 0.0,0.0
 
     #查询最新价
@@ -76,7 +76,7 @@ class TraderAPI():
             return ticker
         except Exception as e:
             strr=str(e)
-            Logger().log(f'获取最新价格失败:{strr}')
+            log(f'获取最新价格失败:{strr}')
             return None
     
     #查询账号资金
@@ -89,7 +89,7 @@ class TraderAPI():
         except Exception as e:
             strr=str(e)
             print(strr)
-            Logger().log(f'查询账号资金失败:{strr}')
+            log(f'查询账号资金失败:{strr}')
             return None
 
     def CreateOrder(self,symbol,type,side,qty,price=None,parms={}):
@@ -98,7 +98,7 @@ class TraderAPI():
             return order,None
         except Exception as e:
             err_msg=self.err_parser(e)
-            # Logger().log(f'创建委托,品种:{symbol},市场类型:{type},方向:{side},数量:{qty},价格:{price},失败{err_msg}')
+            # log(f'创建委托,品种:{symbol},市场类型:{type},方向:{side},数量:{qty},价格:{price},失败{err_msg}')
             return None,err_msg
 
     def FetchOrderBook(self,symbol):
@@ -107,7 +107,7 @@ class TraderAPI():
             return book
         except Exception as e:
             err_msg=self.err_parser(e)
-            Logger().log(f'查询行情深度失败:{err_msg}')
+            log(f'查询行情深度失败:{err_msg}')
             return None
         pass
     
@@ -117,7 +117,7 @@ class TraderAPI():
             return order_list
         except Exception as e:
             err_msg=self.err_parser(e)
-            Logger().log(f'查询未完成委托失败:{err_msg}')
+            log(f'查询未完成委托失败:{err_msg}')
             return None
         pass
 
@@ -127,7 +127,7 @@ class TraderAPI():
             return order
         except Exception as e:
             err_msg=self.err_parser(e)
-            Logger().log(f'查询委托失败:{err_msg}')
+            log(f'查询委托失败:{err_msg}')
             return None
         pass
 
@@ -136,7 +136,7 @@ class TraderAPI():
             self.ex_handler.cancel_order(id)
         except Exception as e:
             err_msg=self.err_parser(e)
-            Logger().log(f'撤单失败:{err_msg}')
+            log(f'撤单失败:{err_msg}')
 
     def err_parser(self,e):
         if self.ex_name==OKEX:

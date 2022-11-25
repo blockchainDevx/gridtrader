@@ -1,8 +1,9 @@
 import json
 import threading
+import sys
 
-# from WebPush import WebPush
-# from Logger import Logger
+from .ws.WebPush import WebPush
+from .logger import Log
 
 LOGIN='/api/login'
 CALC='/api/calc'
@@ -43,6 +44,11 @@ SELL_THRESHOLD=80
 # TITL_TIME='time'
 # TITL_HOUR='hour'
 
+WS_OPEN='wsconnect'
+WS_PING='wsping'
+WS_PONG='wspong'
+WS_DATA='wsdata'
+WS_SIGN='wssign'
 
 #网格类型
 COMM_GRID='1'
@@ -78,16 +84,10 @@ SIGN_SECS={
     '2H':7200,
     '4H':14400,
 }
+#30天的秒数
+A_MON_SEC=2592000
 
-class Singleton():
-    _instance_lock=threading.Lock()
-    def __new__(cls,*args,**argv):
-        if not hasattr(cls, "_instance"):
-            with cls._instance_lock:
-                if not hasattr(cls, "_instance"):
-                    orig=super(Singleton,cls)
-                    cls._instance = orig.__new__(cls,*args,**argv)  
-        return cls._instance
+
 
 def obj_to_json(msgtype,errid,errmsg,data={},id=''):
         obj={
@@ -121,8 +121,17 @@ def http_response(msgtype,id,errid,errmsg,data={}):
 def Func_DecimalCut(f,n):
     return float(int(f*10**n)/10**n)
 
+LOG_ALL=2
+LOG_STORE=1
+LOG_WS=0
 
-# def Record(msg):
-#     print(msg)
-#     Logger().log(msg)
-#     WebPush().sendmsg(msg)
+def Record(msg,msgtype,level=3):
+    if level == LOG_ALL:
+        Log.log(msg)
+        WebPush().sendmsg(msg,msgtype)
+    elif level == LOG_STORE:
+        print('log 1')
+        Log.log(msg)
+        print('log 2')
+    elif level == LOG_WS:
+        WebPush().sendmsg(msg,msgtype)

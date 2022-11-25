@@ -5,7 +5,7 @@ import sys
 import time
 
 from trdapiwrap.TraderAPI import TraderAPI
-from common.logger.Logger import Logger
+from common.logger.Log import log
 
 from common.common import *
 

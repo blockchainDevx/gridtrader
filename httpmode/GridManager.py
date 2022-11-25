@@ -3,10 +3,8 @@
 import threading
 import sys
 
-from WebPush import WebPush
-from httpmode.common.redis import redis_util
+from common.redis import redis_util
 from policies.SignPolicy import SignPolicy
-from common.logger.Logger import Logger
 from common.sendEmal import sendemail
 
 sys.path.append('..')
@@ -20,6 +18,7 @@ from common.ip.check_ip import check_ip
 
 from common.crypto.crypto import Encode,Decode
 from common.redis import *
+from common.single import Singleton
 
 import time
 import json
@@ -619,17 +618,23 @@ class GridManager(Singleton):
     def login_record(self,data,clientip):
         # print(json.dumps(data))
         ipdata=check_ip(clientip)
-        if ipdata== None:
-            sendemail('账号 {0} 登录,时间: {1}, IP信息: {2}'.format(data['account'],data['time'],clientip))
-        else:
-            city=ipdata.get('city')
-            region=ipdata.get('region')
-            addr=ipdata.get('addr')
-            msg1='IP地址: {0},所属城市:{1},地区:{2},地址:{3}'.format(clientip,city,region,addr)
-            msg= '账号 {0} 登录,时间: {1}, IP信息: {2} '.format(data['account'],data['time'],msg1)
-            sendemail(msg)
-            
-        pass
+        
+        #屏蔽发邮件
+        # try:
+        #     if ipdata== None:
+        #         sendemail('账号 {0} 登录,时间: {1}, IP信息: {2}'.format(data['account'],data['time'],clientip))
+        #     else:
+        #         city=ipdata.get('city')
+        #         region=ipdata.get('region')
+        #         addr=ipdata.get('addr')
+        #         msg1='IP地址: {0},所属城市:{1},地区:{2},地址:{3}'.format(clientip,city,region,addr)
+        #         msg= '账号 {0} 登录,时间: {1}, IP信息: {2} '.format(data['account'],data['time'],msg1)
+        #         sendemail(msg)
+        #     pass
+        # except:
+        #     pass
+        
+        return http_response(LOGIN,'',0,'OK')
     '''
         ut信号格式:{
             sign:'UT',
@@ -652,7 +657,7 @@ class GridManager(Singleton):
         hour=data.get('hour')
         # print('1')
         if symbol==None or sign==None or side==None or price==None or time==None or hour==None:
-            Logger().log('ut数据错误')
+            Record('ut数据错误',None,LOG_STORE)
             return
         
         # print('2')
@@ -669,13 +674,8 @@ class GridManager(Singleton):
         }
 
         self.sign_handle(symbol,hour)
-        # print('3')
         msg= json.dumps(data)
-        # print('5')
-        webpush=WebPush()
-        webpush.sendmsg(msg,True)
-        # print('4')
-        # print(msg)
+        Record(msg,WS_SIGN,LOG_WS)
         pass
 
     '''
@@ -717,8 +717,8 @@ class GridManager(Singleton):
             return
         self.sign_handle(symbol,hour)
         msg= json.dumps(data)
-        webpush=WebPush()
-        webpush.sendmsg(msg,True)
+        Record(msg,WS_SIGN,LOG_WS)
+
         pass
 
     '''
@@ -756,8 +756,7 @@ class GridManager(Singleton):
 
         self.sign_handle(symbol,hour)
         msg= json.dumps(data)
-        webpush=WebPush()
-        webpush.sendmsg(msg,True)
+        Record(msg,WS_SIGN,LOG_WS)
         pass
 
     def sign_handle(self,symbol,hour):
@@ -775,10 +774,6 @@ class GridManager(Singleton):
         stc_value=self.sign[symbol][hour]['stc_value']
         stc_color=self.sign[symbol][hour]['stc_color']
         side=''
-        # print('sign '+ json.dumps(self.sign))
-        # print('ut '+json.dumps(ut))
-        # print('value '+json.dumps(stc_value))
-        # print('color '+json.dumps(stc_color))
         if stc_value['number']==BUY_THRESHOLD and ut['side']==BUY and stc_color['side']==BUY: #买信号
             side=BUY
             pass
@@ -795,11 +790,10 @@ class GridManager(Singleton):
                 if 'time' not in self.sign[symbol][hour] or int(now -self.sign[symbol][hour]['time'])>SIGN_SECS[hour]:
                     item['trade'].create_order(side)
                     self.sign[symbol][hour]['time']=int(now)    #记录触发的时间戳
-                    # webpush=WebPush()
-                    # key=item['trade'].__keyname
-                    # webpush.sendmsg(f'策略{key}触发 {side} 信号,品种 {symbol},信号类别 {hour} ,服务器时间戳 {int(now)}')
                 pass
-            
+        #将历史信号存入redis,30天后自动删除
+        key='hs:{0}:{1}:{2}:{3}'.format(symbol,hour,int(now),side)
+        redis_util.set(key,'',expire=A_MON_SEC)
         
         return
             
@@ -930,7 +924,7 @@ class GridManager(Singleton):
         signtype=data['SignType']
         qty=int(data['Qty'])
         qtyres=int(data['QtyReserve'])
-        prres=int(data['PriceResrve'])
+        prres=int(data['PriceReserve'])
         stop=float(data['Stop'])
         strs= symbol.split('/')
         if len(strs)!=2:
@@ -1169,6 +1163,7 @@ class GridManager(Singleton):
         pass
 
     def get_handler(self,path,clientip):     
+        print('get')
         if len(path)==0:
             return http_response(INIT,'',-1,'请求数据格式错误')
             '''
@@ -1198,7 +1193,7 @@ class GridManager(Singleton):
                
     def post_handler(self,path,body):
         if path not in  (SIGN_UT,SIGN_STC_COLOR,SIGN_STC_VALUE):
-            Logger().log('POST:{0},{1}'.format(path,body))
+           Record( 'POST:{0},{1}'.format(path,body),None,LOG_STORE)
         if path==ADD:
             data = json.loads(body)
             return self.grid_add(data)
@@ -1247,7 +1242,7 @@ class GridManager(Singleton):
                 'time':strs[4],
                 'hour':strs[5]
             }
-            print(json.dumps(data))
+            # print(json.dumps(data))
             return data
         return None        
 
@@ -1263,7 +1258,7 @@ class GridManager(Singleton):
                 'time':strs[3],
                 'hour':strs[4]
             }
-            print(json.dumps(data))
+            # print(json.dumps(data))
             return data
         return None
     
@@ -1279,6 +1274,6 @@ class GridManager(Singleton):
                 'time':strs[3],
                 'hour':strs[4]
             }
-            print(json.dumps(data))
+            # print(json.dumps(data))
             return data
         return None

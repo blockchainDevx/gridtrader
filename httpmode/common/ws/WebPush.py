@@ -1,17 +1,25 @@
 from sqlite3 import Date
 import sys
 sys.path.append('..')
-from common.common import *
+from common.single import Singleton
 import threading
 import asyncio
 import websockets
 import datetime
+import json
 
-OPEN='wsconnect'
-PING='wsping'
-PONG='wspong'
-DATA='wsdata'
-SIGN='wssign'
+WS_OPEN='wsconnect'
+WS_PING='wsping'
+WS_PONG='wspong'
+
+def http_response(msgtype,id,errid,errmsg,data={}):
+    return json.dumps({
+        'msgtype':msgtype,
+        'id': id,
+        'errid':errid,
+        'errmsg':errmsg,
+        'data':data
+    })
 
 class WebPush(Singleton):
     __thread={}
@@ -30,15 +38,15 @@ class WebPush(Singleton):
         self.__sockets.append(websocket)
         self.__lock.release()
         self.__id=self.__id+1
-        await websocket.send(http_response(OPEN,self.__id,0,'OK',str(datetime.datetime.now())))
+        await websocket.send(http_response(WS_OPEN,self.__id,0,'OK',str(datetime.datetime.now())))
 
-    def sendmsg(self,data,issign=False):
+    def sendmsg(self,data,datatype):
             # print('sendmsg'+data)
             self.__lock.acquire()
             for websocket in self.__sockets:
                 try:
                     self.__id=self.__id+1
-                    ret=asyncio.run_coroutine_threadsafe(websocket.send(http_response(DATA if issign==False else SIGN,self.__id,0,"OK",data)),self.__loop)
+                    ret=asyncio.run_coroutine_threadsafe(websocket.send(http_response(datatype,self.__id,0,"OK",data)),self.__loop)
                     ret.result()
                 except Exception as e:
                     print('ws发送错误'+str(e))
@@ -56,13 +64,13 @@ class WebPush(Singleton):
             try:
                 data=json.loads(message)
                 msgtype=data.get('msgtype')
-                if msgtype != None and msgtype == PING:
+                if msgtype != None and msgtype == WS_PING:
                     # print("msgtype"+msgtype)
                     self.__id=self.__id+1
-                    await websocket.send(http_response(PONG,self.__id,0,"OK",str(datetime.datetime.now())))
+                    await websocket.send(http_response(WS_PONG,self.__id,0,"OK",str(datetime.datetime.now())))
                     # self.sendmsg(http_response(PONG,self.__id,0,"OK",str(datetime.datetime.now())))
             except Exception as e:
-                await websocket.send(http_response(PONG,self.__id,-1,"数据解析错误",str(datetime.datetime.now())))
+                await websocket.send(http_response(WS_PONG,self.__id,-1,"数据解析错误",str(datetime.datetime.now())))
                 print(str(e))
                 pass
 

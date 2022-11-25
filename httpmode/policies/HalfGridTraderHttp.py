@@ -5,7 +5,7 @@ import sys
 import time
 
 from trdapiwrap.TraderAPI import TraderAPI
-from common.logger.Logger import Logger
+from common.logger.Log import log
 from common.common import *
 
 '''
@@ -329,7 +329,7 @@ class HalfGridTrader(IGridTrader):
 
         #计算出需要进场的手数
         qty=HalfGridTrader.calc_open_qty(grid_lowbound,self.grid_list)
-        Logger().log(f'需要进场的手数为{qty}')
+        log(f'需要进场的手数为{qty}')
 
         #账号已有的币的手数 比需要进场的币的手数多
         remain_buy_qty=0
@@ -378,7 +378,7 @@ class HalfGridTrader(IGridTrader):
             qty=balance['total'][f'{self.coin}']
             if qty> sys.float_info.epsilon:
                 self.trade_hd.CreateOrder(self.api_symbol,MARKET,SELL,qty)
-        Logger().log('网格关闭,所有挂单撤销,所有持仓清仓')
+        log('网格关闭,所有挂单撤销,所有持仓清仓')
         return True,'网格关闭'
         pass
 
@@ -448,7 +448,7 @@ class HalfGridTrader(IGridTrader):
         #建立网格
         ticker=self.trade_hd.FetchTicker(self.api_symbol)
         if ticker==None:
-            Logger().log('网格开启错误,获取最新行情失败')
+            log('网格开启错误,获取最新行情失败')
             return 
         
         if lock!=None:
@@ -457,7 +457,7 @@ class HalfGridTrader(IGridTrader):
         if lock!=None:
             lock.release()
         if flag==False:
-            Logger().log('网格开启错误,网格建立失败')
+            log('网格开启错误,网格建立失败')
             return 
 
         self.start_flag=True
@@ -497,7 +497,7 @@ class HalfGridTrader(IGridTrader):
         self.has_qty=self.has_qty+fill
         id=info['id']
         price=info['price']
-        Logger().log(f'网格挂单成交,委托号为:{id},方向为:买,成交手数为:{fill},委托价格为:{price}')
+        log(f'网格挂单成交,委托号为:{id},方向为:买,成交手数为:{fill},委托价格为:{price}')
 
         pass
 
@@ -506,7 +506,7 @@ class HalfGridTrader(IGridTrader):
         price=info['price']
         self.has_qty=self.has_qty-fill
         id=info['id']
-        Logger().log(f'网格挂单成交,委托号为:{id},方向为:卖,成交手数为:{fill},委托价格为:{price}')
+        log(f'网格挂单成交,委托号为:{id},方向为:卖,成交手数为:{fill},委托价格为:{price}')
 
     def create_grid(self,last):
         has_qty=self.has_qty
@@ -539,10 +539,10 @@ class HalfGridTrader(IGridTrader):
                 item['Id']=order['id']
                 item['Side']=side
                 id=order['id']
-                Logger().log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:sell,手数:{qty},价格:{price}')
+                log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:sell,手数:{qty},价格:{price}')
             # else:
                 #self.stop()
-                #Logger().log(f'建仓成功,开启网格失败')
+                #log(f'建仓成功,开启网格失败')
                 #return False
         return True
 
@@ -623,7 +623,7 @@ class HalfGridTrader(IGridTrader):
                             item['Id']=order['id']
                             item['Side']=side
                             id=order['id']
-                            Logger().log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:{side},手数:{qty},价格:{price}')
+                            log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:{side},手数:{qty},价格:{price}')
                     else:
                         #补漏掉触发的委托
                         self.cover_order(side,item,last)
@@ -635,7 +635,7 @@ class HalfGridTrader(IGridTrader):
                             item['Id']=order['id']
                             item['Side']=side
                             id=order['id']
-                            Logger().log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:{side},手数:{qty},价格:{price}')
+                            log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:{side},手数:{qty},价格:{price}')
 
     def cover_order(self,side,item,last):
         if side== item['Side']: #如果方向相同,表示行情剧烈,在切片检查阶段有行情两次跨过网格线
@@ -653,7 +653,7 @@ class HalfGridTrader(IGridTrader):
             order=self.condition_create_order(self.api_symbol,LIMIT,supply_side,supply_qty,supply_price,last)
             if order!=None:
                 id=order['id']
-                Logger().log(f'市场:{self.api_exchange},品种{self.api_symbol} 补充挂单成功,委托号为:{id},方向:{supply_side},手数:{supply_qty},价格:{supply_price}')
+                log(f'市场:{self.api_exchange},品种{self.api_symbol} 补充挂单成功,委托号为:{id},方向:{supply_side},手数:{supply_qty},价格:{supply_price}')
 
     def condition_create_order(self,symbol,type,side,qty,price,last):
         #超过上升价格就不买了
@@ -676,7 +676,7 @@ class HalfGridTrader(IGridTrader):
 
         #最新价大于上升价格小于回撤价格就完全退出
         if last > self.grid_risbound and last < self.grid_retbound :
-            Logger().log(f'价格{last}已跌到回撤价格{self.grid_retbound}以下')
+            log(f'价格{last}已跌到回撤价格{self.grid_retbound}以下')
             self.stop()
             return True
         return False

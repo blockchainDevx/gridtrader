@@ -7,8 +7,8 @@ from common.common import http_response
 from common.configer.config import Config
 from common.common import LOGIN,ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY,ADDAPI,CHKST,GROUPS,ADDAPIGROUP
 
-from common.logger.Logger import Logger
-from WebPush import WebPush
+from common.logger.Log import log
+from common.ws.WebPush import WebPush
 
 class HTTPHandler(BaseHTTPRequestHandler):
     post_handler=None
@@ -130,7 +130,7 @@ if __name__ == '__main__':
     webport= int(config.glob['web_port']) or 8082
     
     print('Listening %s:%d' % (ip, port))
-    Logger().log(f'Listening {ip}:{port}')
+    log(f'Listening {ip}:{port}')
     grid_mgr=GridManager()
     grid_mgr.init()
     webpush=WebPush()

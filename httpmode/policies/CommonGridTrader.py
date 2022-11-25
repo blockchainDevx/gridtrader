@@ -4,7 +4,7 @@ import sys
 
 from common.common import Func_DecimalCut
 
-from common import Logger
+from common import Log
 
 #
 class IGridTrader():
@@ -88,7 +88,7 @@ def Func_CreateGrid(data):
             ('Id',''),
             ('Side','')
             ]))
-        Logger().log(f'网格编号{i+1} 下沿价格:{low_price},上沿价格:{up_price},买入手数:{buy_qty},卖出手数:{sell_qty}')
+        Log.Logger().log(f'网格编号{i+1} 下沿价格:{low_price},上沿价格:{up_price},买入手数:{buy_qty},卖出手数:{sell_qty}')
     return grid_list
     pass
 
