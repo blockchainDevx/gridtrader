@@ -131,6 +131,7 @@ if __name__ == '__main__':
     
     print('Listening %s:%d' % (ip, port))
     log(f'Listening {ip}:{port}')
+    
     grid_mgr=GridManager()
     grid_mgr.init()
     webpush=WebPush()

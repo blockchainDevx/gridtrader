@@ -92,9 +92,9 @@ class TraderAPI():
             log(f'查询账号资金失败:{strr}')
             return None
 
-    def CreateOrder(self,symbol,type,side,qty,price=None,parms={}):
+    def CreateOrder(self,symbol,type,side,qty,price=None,params={}):
         try:
-            order=self.ex_handler.create_order(symbol,type,side,qty,price,parms)
+            order=self.ex_handler.create_order(symbol,type,side,qty,price,params)
             return order,None
         except Exception as e:
             err_msg=self.err_parser(e)

@@ -1,10 +1,11 @@
 import json
-import threading
 import sys
+import math
 
 from .ws.WebPush import WebPush
 from .logger import Log
 
+#操作路径
 LOGIN='/api/login'
 CALC='/api/calc'
 START='/api/start'
@@ -19,12 +20,23 @@ CHKST='/api/isstart'
 GROUPS='/api/groups'
 ADDAPIGROUP='/api/addapigroup'
 
+#信号路径
 SIGN_UT='/api/ut'
 SIGN_STC_VALUE='/api/stc_value'
 SIGN_STC_COLOR='/api/stc_color'
 
+#信号
 BUY_THRESHOLD=20
 SELL_THRESHOLD=80
+
+#止盈选择类型
+TP_NONE='0'
+TP_FIXED='1'
+TP_FLOATING='2'
+
+#浮动止盈计算类型
+TP_FLT_PER='0'   #按照百分比相乘
+TP_FLT_NUM='1'   #按照固定值相减
 
 #结构元素名称
 # TITL_UT='ut'
@@ -121,6 +133,11 @@ def http_response(msgtype,id,errid,errmsg,data={}):
 def Func_DecimalCut(f,n):
     return float(int(f*10**n)/10**n)
 
+#浮点数的大于等于比较
+def greater_or_equal(a,b,ret=0):
+    return (a-b)>sys.float_info.epsilon or \
+        math.isclose(a,b,rel_tol=math.pow(10,-ret))
+
 LOG_ALL=2
 LOG_STORE=1
 LOG_WS=0
@@ -135,3 +152,8 @@ def Record(msg,msgtype,level=3):
         print('log 2')
     elif level == LOG_WS:
         WebPush().sendmsg(msg,msgtype)
+        
+def RecordData(msg):
+    Record(msg,WS_DATA,LOG_ALL)
+
+ 
