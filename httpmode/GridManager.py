@@ -4,8 +4,12 @@ import threading
 import sys
 
 from common.redis import redis_util
-from policies.SignPolicy import SignPolicy
-from common.sendEmal import sendemail
+from policies.SignPolicies import SignPolicy
+
+from policies.SignPolicies import TradeBYAmmountNormal,TradeBYAmmountGate,TradeBYAmmountOK
+
+# from common.sendEmal import sendemail
+
 
 sys.path.append('..')
 from common.common import *
@@ -880,8 +884,6 @@ class GridManager(Singleton):
                 return http_response(START,id,-1,'网格开启错误,根据组与交易所未找到账号API数据')
             elif api_count==1:#如果API数组里数据只有一个
                 return self.create_trade(apilist[0],id,conf_data['content'])
-            # else:#API数组里数据有多个
-            #     return self.create_trades(apilist,id,conf_data['content'])
     
     def create_trade(self,api,id,data):
         #创建网格
@@ -919,6 +921,7 @@ class GridManager(Singleton):
 
     #信号策略专用
     def create_trades(self,id,data,title):
+        
         groupidlist=data['GroupList']
         symbol=data['Symbol']
         signtype=data['SignType']
@@ -926,27 +929,43 @@ class GridManager(Singleton):
         qtyres=int(data['QtyReserve'])
         prres=int(data['PriceReserve'])
         stop=float(data['Stop'])
+        exchange=data['Exchange']
+        tp_mode=data['TpMode']
+        
         strs= symbol.split('/')
         if len(strs)!=2:
             return http_response(START,id,-1,f'品种格式不对{symbol}')
         
         #批量启动数据
-        trade=SignPolicy()
-        flag=trade.init({
-            'symbol':symbol,
-            'keyName': title,
-            'qtyRes':qtyres,
-            'signType':signtype,
-            'qty':qty
-        } if stop ==0 else {
+        params={
             'symbol':symbol,
             'keyName': title,
             'qtyRes':qtyres,
             'signType':signtype,
             'qty':qty,
-            'priceRes':prres,
-            'stopPer':stop
-        })
+            'tpMode':tp_mode,
+        }
+        
+        #止损配置
+        if stop != 0.0:
+            params['priceRes']=prres
+            params['stopPer']=stop
+            
+        #止盈配置
+        if tp_mode ==TP_FLOATING:
+            params['fltMode']= data['TPFLTMode']
+            params['fltPoint']=data['TPFLTPoint']
+            
+        trade=SignPolicy()
+        
+        #交易类型默认为全买
+        trade_cb=TradeBYAmmountNormal.trade_by_ammount_normal
+        if exchange  == OKEX:
+            trade_cb=TradeBYAmmountOK.trade_by_ammount_ok
+        elif exchange == GATE:
+            trade_cb=TradeBYAmmountGate.trade_by_ammount_gate
+            
+        flag=trade.init(params,trade_cb)
         if flag == False:
             return http_response(START,id,-1,'信号策略数据错误')
         apilist=[]

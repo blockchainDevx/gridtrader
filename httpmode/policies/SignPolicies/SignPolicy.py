@@ -25,17 +25,17 @@ class SignPolicy(IGridTrader):
         self._trade_cb=None       #交易的函数
         self._tp_data={
             'TPMode':TP_NONE,   #止盈的模式 ,0:没有止盈,1:固定止盈,2:浮动止盈
-            'TPCB':None,        #固定止盈的计算止盈点的函数
             'TPFLTMode': TP_FLT_PER,    #浮动止盈的计算类型,0:按价格百分比计算,1:按价格与配置值相减计算
             'TPFLTPoint':0.0
         }
         self._is_master=False   #是否是主流币
 
-    def init(self,params,trade_cb,tp_mode=TP_NONE,tp_cb=None):
+    def init(self,params,trade_cb):
         if 'symbol' not in params or \
             'keyName' not in params or \
             'qtyRes' not in params or \
-            'signType' not in params:
+            'signType' not in params or \
+            'tpMode' not in params:
                 return False
             
         #保存下单函数
@@ -44,8 +44,7 @@ class SignPolicy(IGridTrader):
         self._trade_cb=trade_cb
         
         #保存止盈数据,止盈模式和止盈点计算函数
-        self._tp_data['TPMode']=tp_mode
-        self._tp_data['TPCB']=tp_cb
+        self._tp_data['TPMode']=params['tpMode']
         
         #保存策略配置信息
         self._con_data['Symbol']=params['symbol']
@@ -54,11 +53,17 @@ class SignPolicy(IGridTrader):
         self._keyname=params['keyName']
         self._signtype=params['signType']
         self._con_data['QtyRes']=params['qtyRes']
-        if 'stopPer' in params:
+        
+        #止损配置
+        if 'stopPer' in params and 'priceRes' in params:
             self._con_data['StopPercent']=params['stopPer']
             self._con_data['PriceRes']=self._con_data['QtyRes']
-        if 'priceRes' in params:
-            self._con_data['PriceRes']=params['priceRes']
+            
+        #止盈配置
+        if 'fltMode' in params and 'fltPoint' in params:
+            self._tp_data['TPFLTMode'] = params['fltMode']
+            self._tp_data['TPFLTPoint'] = params['fltPoint']
+            
         symbollist=self._con_data['Symbol'].split('/')
         if len(symbollist)==2:
             self._cointype=symbollist[0]
