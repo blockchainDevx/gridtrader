@@ -3,12 +3,14 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 from GridManager import GridManager 
 import urllib.request
-from common.common import http_response
+from common.common import http_response,Record,LOG_STORE
 from common.configer.config import Config
 from common.common import LOGIN,ADD,CALC,START,STOP,INIT,DEL,UPDATE,QUERY,ADDAPI,CHKST,GROUPS,ADDAPIGROUP
 
 from common.logger.Log import log
 from common.ws.WebPush import WebPush
+
+import traceback
 
 class HTTPHandler(BaseHTTPRequestHandler):
     post_handler=None
@@ -55,10 +57,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
         # text = text.encode('utf8')
         # html = self.text_to_html(req_head).encode('utf8')
         path_data= urllib.request.unquote(self.path)
-        # print(f'GET {path_data}')
         clientip=self.address_string()
-        print(self.client_address[0])
-        print(self.address_string())
         grid_mgr=GridManager()
         text=grid_mgr.get_handler(path_data,clientip)
         
@@ -87,18 +86,17 @@ class HTTPHandler(BaseHTTPRequestHandler):
 
         content_len = int(self.headers['Content-Length'])   
         post_body = self.rfile.read(content_len)
-        # print(f'POST: {self.path},{post_body}')
-        data={}
         response=''
         if len(post_body)!=0:
             try:
                 grid_mgr=GridManager()
                 response=grid_mgr.post_handler(self.path,post_body)
             except Exception as e:
-                print(str(e))
+                msg=traceback.format_exc()
+                Record(msg,level=LOG_STORE)
                 response=http_response(self.path,'',-1,'参数格式错误')
         else:
-            print('post body is empty')
+            Record('post body is empty!',level=LOG_STORE)
         if response:
             self.send_response(200)
             self.end_headers()
@@ -129,8 +127,9 @@ if __name__ == '__main__':
     port=int(config.glob['http_port']) or 8081
     webport= int(config.glob['web_port']) or 8082
     
-    print('Listening %s:%d' % (ip, port))
-    log(f'Listening {ip}:{port}')
+    # print('Listening %s:%d' % (ip, port))
+    # log(f'Listening {ip}:{port}')
+    Record(f'Listening {ip}:{port}',level=LOG_STORE)
     
     grid_mgr=GridManager()
     grid_mgr.init()

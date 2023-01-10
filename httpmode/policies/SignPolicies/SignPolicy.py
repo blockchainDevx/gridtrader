@@ -1,11 +1,11 @@
 from policies.CommonGridTrader import *
 from trdapiwrap.TraderAPI import TraderAPI
 from common.common import *
-from MasterCoin import IsMasterCoin
-from CalcFixedTP import CalcFixedTP
-from SignPolicyQuoteMgr import SPQuoteMgr
-from FixedTPObj import FixedTPTask
-from FloatingTPObj import FloatingTPTask
+from .MasterCoin import IsMasterCoin
+from .CalcFixedTP import CalcFixedTP
+from .SignPolicyQuoteMgr import SPQuoteMgr
+from .FixedTPObj import FixedTPTask
+from .FloatingTPObj import FloatingTPTask
 
 
 class SignPolicy(IGridTrader):
@@ -61,6 +61,8 @@ class SignPolicy(IGridTrader):
             
         #止盈配置
         if 'fltMode' in params and 'fltPoint' in params:
+            if params['fltMode']== TP_FLT_PER and params['fltPoint'] > 1.0:
+                return False
             self._tp_data['TPFLTMode'] = params['fltMode']
             self._tp_data['TPFLTPoint'] = params['fltPoint']
             
@@ -88,7 +90,7 @@ class SignPolicy(IGridTrader):
                 'TradeHD':tradehd,
                 'Taker':taker})
 
-            RecordData(f'=====网页 {0} 启动,账号: {1} ,品种为: {2} ,信号类别为: {3} ======'.format(
+            RecordData('=====网页 {0} 启动,账号: {1} ,品种为: {2} ,信号类别为: {3} ======'.format(
                 self._keyname,
                 groupname,
                 self._con_data['Symbol'],

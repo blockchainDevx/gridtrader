@@ -34,10 +34,22 @@ class FloatingTPTask():
                 self._his_max_price=last  #如果最新价比历史最高价大于或等于,记录历史最高价
             else:
                 #计算出有最高价时的止盈价格
+                #公式: 百分比: 卖出价=最高价*(1-配置值)
+                #      固定值: 卖出价=最高价-配置值
                 flt_min_price=Func_DecimalCut(
-                    self._his_max_price*(1-self._flt_point),\
-                    self._price_res if self._flt_mode == TP_FLT_PER else\
-                    (self._his_max_price- self._flt_point)
+                    self._his_max_price*(1-self._flt_point)\
+                        if self._flt_mode == TP_FLT_PER else\
+                    (self._his_max_price- self._flt_point),
+                    self._price_res 
+                )
+                
+                #公式: 百分比: 卖出价=(最高价 - 买入价)*(1-配置值)+买入价
+                #      固定值: 卖出价=(最高价-买入价)-配置值+买入价
+                flt_min_price=Func_DecimalCut(
+                    ((self._his_max_price-self._trader_price)*(1-self._flt_point)+self._trader_price) \
+                        if self._flt_mode == TP_FLT_PER else \
+                    ((self._his_max_price-self._trader_price)+self._flt_point+self._trader_price),
+                    self._price_res
                 )
                 
                 if greater_or_equal(flt_min_price,last,self._price_res): #止盈价格大于等于最新价,触发止盈

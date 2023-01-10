@@ -2,9 +2,10 @@
 # -*- coding: UTF-8 -*-
 import threading
 import sys
+import traceback
 
 from common.redis import redis_util
-from policies.SignPolicies import SignPolicy
+from policies.SignPolicies.SignPolicy import SignPolicy
 
 from policies.SignPolicies import TradeBYAmmountNormal,TradeBYAmmountGate,TradeBYAmmountOK
 
@@ -243,7 +244,8 @@ class GridManager(Singleton):
             str=json.dumps(metadata)
             return True, Encode(str)
         except Exception as e:
-            print(str(e))
+            msg=traceback.format_exc()
+            print(msg)
             return False,None 
 
     @staticmethod
@@ -257,7 +259,8 @@ class GridManager(Singleton):
             data=json.loads(str_data)
             return True,data
         except Exception as e:
-            print(str(e))
+            msg=traceback.format_exc()
+            print(msg)
             return False,None
     
     def init(self):
@@ -329,7 +332,7 @@ class GridManager(Singleton):
                 _,data=GridManager.metadata_decode(metadata)
                 if data==None:
                     continue
-                print(str(data))
+                # print(str(data))
                 self.__grids_map[f'{id}']={
                     'title':title,
                     'content':data,
@@ -484,7 +487,7 @@ class GridManager(Singleton):
             'GroupList':[],
             'Qty':0,
             'SignType':'',
-            'TpMode':TP_NONE,
+            'TPMode':TP_NONE,
             'TPFLTMode':TP_FLT_PER,
             'TPFLTPoint':0.0
         }
@@ -559,7 +562,7 @@ class GridManager(Singleton):
                     'GroupList':data.get('GroupList'),
                     'Qty':data.get('Qty'),
                     'SignType':data.get('SignType'),
-                    'TpMode':data.get('TpMode'),
+                    'TPMode':data.get('TPMode'),
                     'TPFLTMode':data.get('TPFLTMode'),
                     'TPFLTPoint':data.get('TPFLTPoint'),
                 }
@@ -585,7 +588,7 @@ class GridManager(Singleton):
             item['content']['GroupList']=data.get('GroupList')
             item['content']['Qty']=data.get('Qty')
             item['content']['SignType']=data.get('SignType')
-            item['content']['TpMode']=data.get('TpMode'),
+            item['content']['TPMode']=data.get('TPMode'),
             item['content']['TPFLTMode']=data.get('TPFLTMode'),
             item['content']['TPFLTPoint']=data.get('TPFLTPoint')
 
@@ -648,6 +651,7 @@ class GridManager(Singleton):
         #     pass
         
         return http_response(LOGIN,'',0,'OK')
+    
     '''
         ut信号格式:{
             sign:'UT',
@@ -661,19 +665,16 @@ class GridManager(Singleton):
     def sign_ut(self,data):
         if data==None:
             return
-        # print('ut'+json.dumps(data))
         symbol=data.get('symbol')
         sign=data.get('sign')
         side=data.get('side')
         price=data.get('price')
         time=data.get('time')
         hour=data.get('hour')
-        # print('1')
         if symbol==None or sign==None or side==None or price==None or time==None or hour==None:
-            Record('ut数据错误',None,LOG_STORE)
+            Record(f'ut数据错误,{json.dumps(data)}',level=LOG_STORE)
             return
         
-        # print('2')
         if symbol not in self.sign:
                 self.sign[symbol]={}
             
@@ -710,7 +711,7 @@ class GridManager(Singleton):
         time=data.get('time')
         hour=data.get('hour')
         if symbol==None or sign==None or number==None or time==None or hour==None:
-            print('value数据错误')
+            Record(f'value数据错误,{json.dumps(data)}',level=LOG_STORE)
             return
         
         try: 
@@ -726,7 +727,8 @@ class GridManager(Singleton):
                 'time':time,
             }
         except Exception as e:
-            print(str(e))
+            msg=traceback.format_exc()
+            Record(f'value 数据异常, {msg}',level=LOG_STORE)
             return
         self.sign_handle(symbol,hour)
         # msg= json.dumps(data)
@@ -754,7 +756,7 @@ class GridManager(Singleton):
         hour=data.get('hour')
 
         if symbol==None or sign==None or side==None or time==None or hour==None:
-            print('color 数据错误')
+            Record(f'color 数据错误,{json.dumps(data)}',level=LOG_STORE)
             return
         
         if symbol not in self.sign:
@@ -858,7 +860,8 @@ class GridManager(Singleton):
             
             return http_response(CALC,id,0,err_msg,data1)
         except Exception as e:
-            print(str(e))
+            msg=traceback.format_exc()
+            Record(f'计算发生错误,{msg}')
             return  http_response(CALC,id,-1,'计算数据格式错误')
 
     def grid_start(self,data):
@@ -939,7 +942,7 @@ class GridManager(Singleton):
         prres=int(data['PriceReserve'])
         stop=float(data['Stop'])
         exchange=data['Exchange']
-        tp_mode=data['TpMode']
+        tp_mode=data['TPMode']
         
         strs= symbol.split('/')
         if len(strs)!=2:
@@ -976,7 +979,7 @@ class GridManager(Singleton):
             
         flag=trade.init(params,trade_cb)
         if flag == False:
-            return http_response(START,id,-1,'信号策略数据错误')
+            return http_response(START,id,-1,'信号策略数据错误,止盈百分比设置值大于1')
         apilist=[]
         for i in range(0,len(groupidlist)):
             groupid = groupidlist[i]
@@ -1007,9 +1010,6 @@ class GridManager(Singleton):
             'signtype':signtype
         }
         self.__trades_map[id]=trd_data
-        # for item in self.__trades_map:
-        #     print(f'trade:{item},')
-            
         return http_response(START,id,0,'OK')
     
     def interrupt_trade(self,id):
@@ -1191,7 +1191,6 @@ class GridManager(Singleton):
         pass
 
     def get_handler(self,path,clientip):     
-        print('get')
         if len(path)==0:
             return http_response(INIT,'',-1,'请求数据格式错误')
             '''
@@ -1270,7 +1269,6 @@ class GridManager(Singleton):
                 'time':strs[4],
                 'hour':strs[5]
             }
-            # print(json.dumps(data))
             return data
         return None        
 
@@ -1286,7 +1284,6 @@ class GridManager(Singleton):
                 'time':strs[3],
                 'hour':strs[4]
             }
-            # print(json.dumps(data))
             return data
         return None
     
@@ -1302,6 +1299,5 @@ class GridManager(Singleton):
                 'time':strs[3],
                 'hour':strs[4]
             }
-            # print(json.dumps(data))
             return data
         return None

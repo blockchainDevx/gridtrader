@@ -142,14 +142,12 @@ LOG_ALL=2
 LOG_STORE=1
 LOG_WS=0
 
-def Record(msg,msgtype,level=3):
+def Record(msg,msgtype=WS_DATA,level=1):
     if level == LOG_ALL:
         Log.log(msg)
         WebPush().sendmsg(msg,msgtype)
     elif level == LOG_STORE:
-        print('log 1')
         Log.log(msg)
-        print('log 2')
     elif level == LOG_WS:
         WebPush().sendmsg(msg,msgtype)
         
