@@ -48,7 +48,7 @@ class FloatingTPTask():
                 flt_min_price=Func_DecimalCut(
                     ((self._his_max_price-self._trader_price)*(1-self._flt_point)+self._trader_price) \
                         if self._flt_mode == TP_FLT_PER else \
-                    ((self._his_max_price-self._trader_price)+self._flt_point+self._trader_price),
+                    ((self._his_max_price-self._trader_price)-self._flt_point+self._trader_price),
                     self._price_res
                 )
                 

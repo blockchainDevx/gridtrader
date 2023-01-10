@@ -1,5 +1,5 @@
 from common.common import BUY,SELL,LIMIT,RecordData,Func_DecimalCut
-from MasterCoin import TradePairHandle
+from .MasterCoin import TradePairHandle
 import traceback
 def trade_by_ammount_gate(side,item,data):
     ammount_type=data['AmmountType']

@@ -1,5 +1,5 @@
 from common.common import BUY,SELL,MARKET,LIMIT,Func_DecimalCut,RecordData
-from MasterCoin import TradePairHandle
+from .MasterCoin import TradePairHandle
 import traceback
 def trade_by_ammount_normal(side,item,data):
     lastside=data['LastSide']

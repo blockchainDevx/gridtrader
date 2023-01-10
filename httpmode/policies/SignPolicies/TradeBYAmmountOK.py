@@ -1,5 +1,5 @@
 from common.common import BUY,SELL,LIMIT,MARKET,RecordData,Func_DecimalCut
-from MasterCoin import TradePairHandle
+from .MasterCoin import TradePairHandle
 import traceback
 
 def trade_by_ammount_ok(side,item,data):
