@@ -61,10 +61,10 @@ class SignPolicy(IGridTrader):
             
         #止盈配置
         if 'fltMode' in params and 'fltPoint' in params:
-            if params['fltMode']== TP_FLT_PER and params['fltPoint'] > 1.0:
+            if params['fltMode']== TP_FLT_PER and float(params['fltPoint']) > 1.0:
                 return False
             self._tp_data['TPFLTMode'] = params['fltMode']
-            self._tp_data['TPFLTPoint'] = params['fltPoint']
+            self._tp_data['TPFLTPoint'] = float(params['fltPoint'])
             
         symbollist=self._con_data['Symbol'].split('/')
         if len(symbollist)==2:
@@ -100,7 +100,7 @@ class SignPolicy(IGridTrader):
  
     #开启监视器
     def create_order(self,side, price=0):
-        RecordData(f'---------网页 {self.__keyname} 触发信号---------')
+        RecordData(f'---------网页 {self._keyname} 触发信号---------')
         RecordData('信号触发:方向为: {0} ,品种: {1} ,信号类别为: {2}'.format(side,self._con_data['Symbol'],self._signtype))
         for item in self._apis:
             qty,price=self._trade_cb(side,item,self._con_data)
