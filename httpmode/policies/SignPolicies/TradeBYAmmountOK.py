@@ -12,9 +12,11 @@ def trade_by_ammount_ok(side,item,data):
     
     tradehd=item.get('TraderHD')
     if tradehd==None:
+        RecordData(f'交易账号未找到')
         return None,None
     balance=tradehd.FetchBalance()
     if balance ==None:
+        RecordData(f'交易账号未能查到资金数据')
         return None,None
     try:
         if side==BUY:#信号为买入
@@ -61,6 +63,7 @@ def trade_by_ammount_ok(side,item,data):
                 coin=symbollist[0]
             
             if len(coin) == 0:
+                RecordData(f'交易币种信息错误')
                 return None,None
             
             #查看币量

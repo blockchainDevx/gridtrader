@@ -87,7 +87,7 @@ class SignPolicy(IGridTrader):
             _,taker=tradehd.FetchTradingFee(self._con_data['Symbol'])
             self._apis.append({ 
                 'TraderName': '{0}|{1}'.format(self._keyname, item['GroupName']),
-                'TradeHD':tradehd,
+                'TraderHD':tradehd,
                 'Taker':taker})
 
             RecordData('=====网页 {0} 启动,账号: {1} ,品种为: {2} ,信号类别为: {3} ======'.format(

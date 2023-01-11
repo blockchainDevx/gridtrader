@@ -9,6 +9,7 @@ def trade_by_qty(side,item,data):
     tradehd=item.get('TraderHD')
     taker=item.get('Taker')
     if tradehd==None or taker==None:
+        RecordData('交易账号未找到或者品种费率未找到')
         return
     
     try:
