@@ -80,7 +80,7 @@ def trade_by_ammount_ok(side,item,data):
                 msg='成功,委托号为{0}'.format(order['id'])
             tick=tradehd.FetchTicker(symbol)
             RecordData('账号 {0} 卖出 {1} ,全卖,卖出数量为 {2} ,当前价格为 {3} ,委托号为 {4}'.
-                                format(tradehd.group_name,msg,qty,tick['last']))
+                                format(tradehd.group_name,msg,qty,tick['last'],order['id']))
             return qty,tick['last'] if order!=None else None,None
     except:
         msg=traceback.format_exc()
