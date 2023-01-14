@@ -1,8 +1,7 @@
-from common.common import BUY,SELL,MARKET,LIMIT,Func_DecimalCut,RecordData
+from common.common import BUY, LOG_STORE,SELL,MARKET,LIMIT,Func_DecimalCut,RecordData,Record
 from .MasterCoin import TradePairHandle
 import traceback
 def trade_by_ammount_normal(side,item,data):
-    lastside=data['LastSide']
     ammount_type=data['AmmountType']
     symbol=data['Symbol']
     qty_res=data['QtyRes']
@@ -50,8 +49,11 @@ def trade_by_ammount_normal(side,item,data):
             else:
                 msg='成功,委托号为{0}'.format(order['id'])
             RecordData('账号 {0} 买入 {1},买入数量为 {2},当前的价格为 {3},当前账号的资金为 {4}'.
-                                format(tradehd.group_name,msg,qty,tick['last'],amount))       
-            return qty,tick['last'] if order!=None else None,None
+                                format(tradehd.group_name,msg,qty,tick['last'],amount))   
+            if order!=None:
+                return qty,tick['last']   
+            else:
+                return None,None
         elif side == SELL: #卖
             #获取币种名称
             coin=''
@@ -63,6 +65,7 @@ def trade_by_ammount_normal(side,item,data):
             
             #获取币数量
             qty=float(balance['total'][coin])
+            qty=Func_DecimalCut(qty,qty_res)
             
             #下单
             order,err_msg = tradehd.CreateOrder(symbol,MARKET,SELL,qty)
@@ -74,11 +77,12 @@ def trade_by_ammount_normal(side,item,data):
             else:
                 msg='成功,委托号为{0}'.format(order['id'])
             tick=tradehd.FetchTicker(symbol)
-            RecordData('账号 {0} 卖出 {1},全卖,卖出数量为 {2},当前价格为 {3},委托号为 {4}'.
-                                format(tradehd.group_name,msg,qty,tick['last'], order['id']))
-            return qty,tick['last'] if order!=None else None,None
+            last=tick['last'] if tick!=None else '-'
+            RecordData('账号 {0} 卖出 {1},全卖,卖出数量为 {2},当前价格为 {3}'.
+                                format(tradehd.group_name,msg,qty,last))
+            return None,None
     except:
         msg=traceback.format_exc()
-        RecordData(f'{tradehd.group_name} 调用失败,原因为: {msg}')
+        Record(f'{tradehd.group_name} 调用失败,原因为: {msg}',level=LOG_STORE)
         return None,None
     pass

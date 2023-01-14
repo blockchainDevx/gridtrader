@@ -6,7 +6,16 @@ from .CalcFixedTP import CalcFixedTP
 from .SignPolicyQuoteMgr import SPQuoteMgr
 from .FixedTPObj import FixedTPTask
 from .FloatingTPObj import FloatingTPTask
+from policies.SignPolicies import TradeBYAmmountNormal,TradeBYAmmountGate,TradeBYAmmountOK
 
+#交易类型默认为全买
+def SelTradeHD(exname):
+    trade_cb=TradeBYAmmountNormal.trade_by_ammount_normal
+    if exname  == OKEX:
+        trade_cb=TradeBYAmmountOK.trade_by_ammount_ok
+    elif exname == GATE:
+        trade_cb=TradeBYAmmountGate.trade_by_ammount_gate
+    return trade_cb
 
 class SignPolicy(IGridTrader):
     def __init__(self):
@@ -30,7 +39,7 @@ class SignPolicy(IGridTrader):
         }
         self._is_master=False   #是否是主流币
 
-    def init(self,params,trade_cb):
+    def init(self,params):
         if 'symbol' not in params or \
             'keyName' not in params or \
             'qtyRes' not in params or \
@@ -39,9 +48,6 @@ class SignPolicy(IGridTrader):
                 return False
             
         #保存下单函数
-        if trade_cb== None:
-            return False
-        self._trade_cb=trade_cb
         
         #保存止盈数据,止盈模式和止盈点计算函数
         self._tp_data['TPMode']=params['tpMode']
@@ -82,13 +88,15 @@ class SignPolicy(IGridTrader):
     def start(self,apilist):
         for item in apilist:
             groupname=item['GroupName']
+            tradefunc=SelTradeHD(item['Exchange'])
             tradehd=TraderAPI(groupname)
             tradehd.CreateExHandler(item['Exchange'],item['Content'])
             _,taker=tradehd.FetchTradingFee(self._con_data['Symbol'])
             self._apis.append({ 
                 'TraderName': '{0}|{1}'.format(self._keyname, item['GroupName']),
                 'TraderHD':tradehd,
-                'Taker':taker})
+                'Taker':taker,
+                'TraderFunc':tradefunc})
 
             RecordData('=====网页 {0} 启动,账号: {1} ,品种为: {2} ,信号类别为: {3} ======'.format(
                 self._keyname,
@@ -103,7 +111,7 @@ class SignPolicy(IGridTrader):
         RecordData(f'---------网页 {self._keyname} 触发信号---------')
         RecordData('信号触发:方向为: {0} ,品种: {1} ,信号类别为: {2}'.format(side,self._con_data['Symbol'],self._signtype))
         for item in self._apis:
-            qty,price=self._trade_cb(side,item,self._con_data)
+            qty,price=item['TraderFunc'](side,item,self._con_data)
             
             #有止盈的执行止盈
             if side==BUY and qty!=None and price !=None: 

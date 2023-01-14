@@ -51,7 +51,11 @@ def trade_by_ammount_gate(side,item,data):
                 msg='成功'
             RecordData('账号 {0} 买入 {1},买入数量为 {2},当前的价格为 {3},当前账号的资金为 {4}'.
                                 format(tradehd.group_name,msg,qty,tick['last'],amount))    
-            return qty,tick['last'] if order!=None else None,None                                       
+            if order!=None:
+                return qty,tick['last']
+            else:
+                return None,None
+                      
         else: #卖
             #获取币种名称
             coin=''
@@ -63,6 +67,7 @@ def trade_by_ammount_gate(side,item,data):
             
             #获取账号币数量        
             qty=float(balance['total'][coin])
+            qty=Func_DecimalCut(qty,qty_res)
             
             #获取币种最新价
             tick=tradehd.FetchTicker(symbol)
@@ -82,7 +87,7 @@ def trade_by_ammount_gate(side,item,data):
                 msg='成功'
             RecordData('账号 {0} 卖出 {1},全卖,卖出数量为 {2},卖出价格为 {3}'.
                                 format(tradehd.group_name,msg,qty,last))
-            return qty,last if order!=None else None,None
+            return None,None
     except:
         msg=traceback.format_exc()
         RecordData(f'{tradehd.group_name} 调用失败,原因为: {msg}')
