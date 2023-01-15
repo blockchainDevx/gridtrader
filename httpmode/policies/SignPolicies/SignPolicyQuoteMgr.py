@@ -16,7 +16,7 @@ class SPQuoteMgr(Singleton):
     
     def addtask(self,taskobj):
         with self._lock:
-            self._task_maps[f'{taskobj.str()}']=taskobj
+            self._task_maps[f'{str(taskobj)}']=taskobj
     
     def deltask(self,taskname):
         with self._lock:
