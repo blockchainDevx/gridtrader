@@ -124,7 +124,7 @@ class SignPolicy(IGridTrader):
                         SPQuoteMgr().addtask(FixedTPTask(item,self._con_data,tp_data))
                         msg='开启止盈,止盈模式为固定止盈,'
                         for index in range(0,len(tp_data)):
-                            msg=msg+'止盈点 {0},币数为 {1},价格为 {2}'.format(index,tp_data[0],tp_data[1])
+                            msg=msg+'止盈点 {0},币数为 {1},价格为 {2}'.format(index,tp_data[index][0],tp_data[index][1])
                         RecordData(msg)
                 elif self._tp_data['TPMode'] ==  TP_FLOATING:
                     qty_m=qty*(1-item['Taker'])

@@ -7,8 +7,6 @@ import traceback
 from common.redis import redis_util
 from policies.SignPolicies.SignPolicy import SignPolicy
 
-from policies.SignPolicies import TradeBYAmmountNormal,TradeBYAmmountGate,TradeBYAmmountOK
-
 # from common.sendEmal import sendemail
 
 
@@ -969,15 +967,7 @@ class GridManager(Singleton):
             params['fltPoint']=data['TPFLTPoint']
             
         trade=SignPolicy()
-        
-        #交易类型默认为全买
-        trade_cb=TradeBYAmmountNormal.trade_by_ammount_normal
-        if exchange  == OKEX:
-            trade_cb=TradeBYAmmountOK.trade_by_ammount_ok
-        elif exchange == GATE:
-            trade_cb=TradeBYAmmountGate.trade_by_ammount_gate
-            
-        flag=trade.init(params,trade_cb)
+        flag=trade.init(params)
         if flag == False:
             return http_response(START,id,-1,'信号策略数据错误,止盈百分比设置值大于1')
         apilist=[]
