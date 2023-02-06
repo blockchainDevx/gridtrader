@@ -1,4 +1,3 @@
-from pickle import MARK
 #from zoneinfo import available_timezones
 from policies.CommonGridTrader import *
 import sys
@@ -43,6 +42,7 @@ class HalfGridVariantTrader(IGridTrader):
     #参数检查
     @staticmethod
     def parms_check(json_data):
+        # from ..GridManager import GridManager
         exchange=json_data.get('Exchange')
         if exchange == None or len(exchange)==0:
             return False,'缺少交易所名称'
@@ -53,13 +53,16 @@ class HalfGridVariantTrader(IGridTrader):
            exchange.lower()!=GATE:
             return False,'交易所设置错误,目前只支持OKEX,FTX或BINANCE'
         
-        symbol=json_data.get('Symbol')
-        if symbol==None or len(symbol)==0:
+        symbol_id=json_data.get('SymbolId')
+        if symbol_id==None or len(symbol_id)==0:
             return False,'交易所品种必须要设置'
+        # symbol=json_data.get('Symbol')
+        # if symbol==None or len(symbol)==0:
+        #     return False,'交易所品种必须要设置'
         
-        price_res=json_data.get('PriceReserve')
-        if price_res == None or int(price_res)<0 or int(price_res)>8:
-            return False,'价格保留位数设置错误,必须大于0小于8'
+        # price_res=json_data.get('PriceReserve')
+        # if price_res == None or int(price_res)<0 or int(price_res)>8:
+        #     return False,'价格保留位数设置错误,必须大于0小于8'
 
         up_bound=json_data.get('UpBound')
         if up_bound ==None or float(up_bound) < sys.float_info.epsilon:
@@ -100,6 +103,7 @@ class HalfGridVariantTrader(IGridTrader):
     #网格计算
     @staticmethod
     def grid_calc(api,data):
+        from ..GridManager import GridManager
         #创建交易所对象
         ex_name=data['Exchange']
         trader=TraderAPI()
@@ -107,7 +111,10 @@ class HalfGridVariantTrader(IGridTrader):
         if flag==False:
             return False,f'交易所{ex_name}不支持'
         
-        symbol=data['Symbol']
+        
+        symbol_info=GridManager().get_symbol_by_id( data['SymbolId'])
+        # symbol=data['Symbol']
+        symbol=symbol_info['symbol']
                          
         #账号费率
         grid_maker=0.0
@@ -118,8 +125,12 @@ class HalfGridVariantTrader(IGridTrader):
         up_bound=float(data['UpBound'])
         grid_qty=int(data['GridQty'])
         amount=float(data['Amount'])
-        price_res=int(data['PriceReserve'])
-        qty_res=int(data['QtyReserve'])
+        pmin=symbol_info['pmin']
+        qmin=symbol_info['qmin']
+        pdigit=symbol_info['pdigit']
+        qdigit=symbol_info['qdigit']
+        # price_res=int(data['PriceReserve'])
+        # qty_res=int(data['QtyReserve'])
         lower=0.0
         open=float(data['Open'])
         ticker=None
@@ -149,8 +160,10 @@ class HalfGridVariantTrader(IGridTrader):
             'Fund':fund_per_grid,
             'Qty':grid_qty,
             'Lower':lower,
-            'PriceRes':price_res,
-            'QtyRes':qty_res
+            'PMin':pmin,
+            'PDigit':pdigit,
+            'QMin':qmin,
+            'QDigit':qdigit
         })
         if grid_list==None or len(grid_list)==0:
             return False,'创建网格失败',None
@@ -190,6 +203,7 @@ class HalfGridVariantTrader(IGridTrader):
 
     #读取配置
     def read_config_by_obj(self,api,json_data):
+        from ..GridManager import GridManager
         #入参数据检查
         flag,msg=HalfGridVariantTrader.parms_check(json_data)
         if flag==False:
@@ -199,7 +213,9 @@ class HalfGridVariantTrader(IGridTrader):
         self.api_exchange=json_data['Exchange']
 
         #symbol
-        self.api_symbol=json_data['Symbol']
+        # self.api_symbol=json_data['Symbol']
+        symbol_info=GridManager().get_symbol_by_id(json_data['SymbolId'])
+        self.api_symbol=symbol_info['symbol']
 
         #coin
         symbollist=self.api_symbol.split('/')
@@ -222,10 +238,14 @@ class HalfGridVariantTrader(IGridTrader):
             self.api_subaccount=subaccount
 
         #价格保留数
-        self.api_pricereserve=int(json_data['PriceReserve'])
+        # self.api_pricereserve=int(json_data['PriceReserve'])
+        self.api_pmin=symbol_info['pmin']
+        self.api_pdigit=symbol_info['pdigit']
 
         #手数保留数
-        self.api_qtyreserve=int(json_data['QtyReserve'])
+        # self.api_qtyreserve=int(json_data['QtyReserve'])
+        self.api_qmin=symbol_info['qmin']
+        self.api_qdigit=symbol_info['qdigit']
 
         #天格
         self.grid_upbound=float(json_data['UpBound'])
@@ -311,7 +331,7 @@ class HalfGridVariantTrader(IGridTrader):
 
         #计算出每格资金,
         fund_per_grid=self.grid_ammount/self.grid_gridqty
-        fund_per_grid=Func_DecimalCut(fund_per_grid,self.api_pricereserve)
+        fund_per_grid=Func_DecimalCut2(fund_per_grid,self.api_pdigit,self.api_pmin)
 
         #计算出每格的纯利润,数据不变
         #net_profit=((1+self.grid_maker)**2)*(1+ratio_per_grid)-1
@@ -323,14 +343,16 @@ class HalfGridVariantTrader(IGridTrader):
             'Fund':fund_per_grid,
             'Qty':self.grid_gridqty,
             'Lower':grid_lowbound,
-            'PriceRes':self.api_pricereserve,
-            'QtyRes':self.api_qtyreserve
+            'PMin':self.api_pmin,
+            'PDigit':self.api_pdigit,
+            'QMin':self.api_qmin,
+            'QDigit':self.api_qdigit
         })
         self.grid_list.sort(key=lambda x:x['LowPrice'])
 
         #计算出需要进场的手数
         qty=HalfGridVariantTrader.calc_open_qty(grid_lowbound,self.grid_list)
-        Logger().log(f'需要进场的手数为{qty}')
+        Record(f'需要进场的手数为{qty}',levle=LOG_STORE)
 
         #账号已有的币的手数 比需要进场的币的手数多
         remain_buy_qty=0
@@ -379,7 +401,7 @@ class HalfGridVariantTrader(IGridTrader):
             qty=balance['total'][f'{self.coin}']
             if qty> sys.float_info.epsilon:
                 self.trade_hd.CreateOrder(self.api_symbol,MARKET,SELL,qty)
-        Logger().log('网格关闭,所有挂单撤销,所有持仓清仓')
+        Record('网格关闭,所有挂单撤销,所有持仓清仓',level=LOG_STORE)
         return True,'网格关闭'
         pass
 
@@ -449,7 +471,7 @@ class HalfGridVariantTrader(IGridTrader):
         #建立网格
         ticker=self.trade_hd.FetchTicker(self.api_symbol)
         if ticker==None:
-            Logger().log('网格开启错误,获取最新行情失败')
+            Record('网格开启错误,获取最新行情失败',level=LOG_STORE)
             return 
         
         if lock!=None:
@@ -458,7 +480,7 @@ class HalfGridVariantTrader(IGridTrader):
         if lock!=None:
             lock.release()
         if flag==False:
-            Logger().log('网格开启错误,网格建立失败')
+            Record('网格开启错误,网格建立失败',level=LOG_STORE)
             return 
 
         self.start_flag=True
@@ -498,7 +520,7 @@ class HalfGridVariantTrader(IGridTrader):
         self.has_qty=self.has_qty+fill
         id=info['id']
         price=info['price']
-        Logger().log(f'网格挂单成交,委托号为:{id},方向为:买,成交手数为:{fill},委托价格为:{price}')
+        Record(f'网格挂单成交,委托号为:{id},方向为:买,成交手数为:{fill},委托价格为:{price}',level=LOG_STORE)
 
         pass
 
@@ -507,7 +529,7 @@ class HalfGridVariantTrader(IGridTrader):
         price=info['price']
         self.has_qty=self.has_qty-fill
         id=info['id']
-        Logger().log(f'网格挂单成交,委托号为:{id},方向为:卖,成交手数为:{fill},委托价格为:{price}')
+        Record(f'网格挂单成交,委托号为:{id},方向为:卖,成交手数为:{fill},委托价格为:{price}',level=LOG_STORE)
 
     def create_grid(self,last):
         has_qty=self.has_qty
@@ -525,7 +547,7 @@ class HalfGridVariantTrader(IGridTrader):
                 if(has_qty<qty):
                     qty=has_qty
                 has_qty=has_qty-qty
-                qty=Func_DecimalCut(qty,self.api_qtyreserve)
+                qty=Func_DecimalCut2(qty,self.api_qdigit,self.api_qmin)
                 price=item['UpPrice']
                 side=SELL
             else:
@@ -540,7 +562,7 @@ class HalfGridVariantTrader(IGridTrader):
                 item['Id']=order['id']
                 item['Side']=side
                 id=order['id']
-                Logger().log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:sell,手数:{qty},价格:{price}')
+                Record(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:sell,手数:{qty},价格:{price}',level=LOG_STORE)
             # else:
                 #self.stop()
                 #Logger().log(f'建仓成功,开启网格失败')
@@ -624,7 +646,7 @@ class HalfGridVariantTrader(IGridTrader):
                             item['Id']=order['id']
                             item['Side']=side
                             id=order['id']
-                            Logger().log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:{side},手数:{qty},价格:{price}')
+                            Record(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:{side},手数:{qty},价格:{price}',level=LOG_STORE)
                     else:
                         #补漏掉触发的委托
                         self.cover_order(side,item,last)
@@ -636,7 +658,7 @@ class HalfGridVariantTrader(IGridTrader):
                             item['Id']=order['id']
                             item['Side']=side
                             id=order['id']
-                            Logger().log(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:{side},手数:{qty},价格:{price}')
+                            Record(f'市场:{self.api_exchange},品种{self.api_symbol} 挂单成功,委托号为:{id},方向:{side},手数:{qty},价格:{price}',level=LOG_STORE)
 
     def cover_order(self,side,item,last):
         if side== item['Side']: #如果方向相同,表示行情剧烈,在切片检查阶段有行情两次跨过网格线
@@ -654,7 +676,7 @@ class HalfGridVariantTrader(IGridTrader):
             order=self.condition_create_order(self.api_symbol,LIMIT,supply_side,supply_qty,supply_price,last)
             if order!=None:
                 id=order['id']
-                Logger().log(f'市场:{self.api_exchange},品种{self.api_symbol} 补充挂单成功,委托号为:{id},方向:{supply_side},手数:{supply_qty},价格:{supply_price}')
+                Record(f'市场:{self.api_exchange},品种{self.api_symbol} 补充挂单成功,委托号为:{id},方向:{supply_side},手数:{supply_qty},价格:{supply_price}',level=LOG_STORE)
 
     def condition_create_order(self,symbol,type,side,qty,price,last):
         #超过上升价格就不买了
@@ -680,7 +702,7 @@ class HalfGridVariantTrader(IGridTrader):
 
         #最新价大于上升价格小于回撤价格就完全退出
         if last > self.grid_risbound and last < self.grid_retbound :
-            Logger().log(f'价格{last}已跌到回撤价格{self.grid_retbound}以下')
+            Record(f'价格{last}已跌到回撤价格{self.grid_retbound}以下',level=LOG_STORE)
             self.stop()
             return True
         return False

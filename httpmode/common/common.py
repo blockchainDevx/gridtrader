@@ -19,6 +19,9 @@ ADDAPI='/api/addapi'
 CHKST='/api/isstart'
 GROUPS='/api/groups'
 ADDAPIGROUP='/api/addapigroup'
+SYMBOLS='/api/getsymbolsinfobyex'
+ADDSYMBOL='/api/addsymbolinfo'
+DELSYMBOL='/api/delsymbolinfo'
 
 #信号路径
 SIGN_UT='/api/ut'
@@ -132,6 +135,23 @@ def http_response(msgtype,id,errid,errmsg,data={}):
 #小数点保留位数,去尾
 def Func_DecimalCut(f,n):
     return float(int(f*10**n)/10**n)
+
+#根据最小精度来切割数值
+def Func_DecimalCut2(f,d,m):
+    #先数值乘以位数的10次方切割剩余小数
+    #获取数值除以最小值的余
+    #再用余乘以最小值除以位数取浮点数
+    return float((int(int(f*10**d)/m)*m)/10**d)
+    pass
+
+#获取小数点位数
+def get_decimal_places(num):
+    import decimal
+    if '.' in num:
+        num=str(float(num))
+    d=decimal.Decimal(str(num))
+    return abs(d.as_tuple().exponent)
+    
 
 #浮点数的大于等于比较
 def greater_or_equal(a,b,ret=0):

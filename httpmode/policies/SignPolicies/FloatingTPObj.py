@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from common.common import RecordData,Func_DecimalCut,SELL,LIMIT,greater_or_equal,TP_FLT_PER,TP_FLT_NUM
+from common.common import RecordData,Func_DecimalCut2,SELL,LIMIT,greater_or_equal,TP_FLT_PER,TP_FLT_NUM
 
 import traceback
 
@@ -7,7 +7,10 @@ class FloatingTPTask():
     def __init__(self,tradhd,condata,tpdata,qty,price):
         self._tradeobj=tradhd   #交易对象句柄
         self._symbol=condata['Symbol']   #交易品种
-        self._price_res=condata['PriceRes']     #行情精度
+        # self._price_res=condata['PriceRes']     
+        # #行情精度
+        self._pmin=condata['PMin']
+        self._pdigit=condata['PDigit']
         self._flt_point=tpdata['TPFLTPoint']    #浮盈值
         self._flt_mode=tpdata['TPFLTMode']      #浮盈模式
         self._his_max_price=0.0        #历史最高价(从创建对象之后)
@@ -36,20 +39,22 @@ class FloatingTPTask():
                 #计算出有最高价时的止盈价格
                 #公式: 百分比: 卖出价=最高价*(1-配置值)
                 #      固定值: 卖出价=最高价-配置值
-                flt_min_price=Func_DecimalCut(
+                flt_min_price=Func_DecimalCut2(
                     self._his_max_price*(1-self._flt_point)\
                         if self._flt_mode == TP_FLT_PER else\
                     (self._his_max_price- self._flt_point),
-                    self._price_res 
+                    self._pdigit,
+                    self._pmin 
                 )
                 
                 #公式: 百分比: 卖出价=(最高价 - 买入价)*(1-配置值)+买入价
                 #      固定值: 卖出价=(最高价-买入价)-配置值+买入价
-                flt_min_price=Func_DecimalCut(
+                flt_min_price=Func_DecimalCut2(
                     ((self._his_max_price-self._trader_price)*(1-self._flt_point)+self._trader_price) \
                         if self._flt_mode == TP_FLT_PER else \
                     ((self._his_max_price-self._trader_price)-self._flt_point+self._trader_price),
-                    self._price_res
+                    self._pdigit,
+                    self._pmin
                 )
                 
                 if greater_or_equal(flt_min_price,last,self._price_res): #止盈价格大于等于最新价,触发止盈

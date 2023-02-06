@@ -878,6 +878,7 @@ class GridTraderHttp():
 
     @staticmethod
     def grid_calc(api,data):
+        from ..GridManager import GridManager
         apidata=api['API']
         #登录
         exchange={}
@@ -921,12 +922,15 @@ class GridTraderHttp():
             ex_name=data['Exchange']
             return False,f'选择的交易所{ex_name}不支持',{}
 
+        symbol_info=GridManager().get_symbol_by_id(data['SymbolId'])
+        
+
         #检测交易所是否连接成功
         grid_maker=0
         grid_taker=0
         if data['Exchange'] == OKEX:
             try:
-                fee=exchange.fetch_trading_fee(data['Symbol'])
+                fee=exchange.fetch_trading_fee(symbol_info['symbol'])
                 #限手续费,是扣币
                 grid_maker=abs(fee['maker'])
                 #市价手续费,是扣u
@@ -942,12 +946,13 @@ class GridTraderHttp():
         grid_qty=int(data['GridQty'])
         ammount=float(data['Amount'])
         
-        price_reserve=int(data['PriceReserve'])
+        
+        
         ratio_per_grid=(up_bound/low_bound)**(1/grid_qty)-1
         
         #计算出每格资金,数据不变
         fund_per_grid=ammount/grid_qty
-        fund_per_grid=GridTraderHttp.cut(fund_per_grid,price_reserve)
+        fund_per_grid=Func_DecimalCut2(fund_per_grid,symbol_info['pdigit'],symbol_info['pmin'])
 
         #计算出每格的纯利润,数据不变
         net_profit=((1-grid_maker)**2)*(1+ratio_per_grid)-1
@@ -968,7 +973,7 @@ class GridTraderHttp():
             timestamp=int(round(time.time() * 1000))
         else:
             try:
-                ticker = exchange.fetch_ticker(data['Symbol'])
+                ticker = exchange.fetch_ticker(symbol_info['symbol'])
             except Exception as e:
                 strr=str(e)
                 return False,f'交易所连接失败,获取最新价格失败,{strr}',None
@@ -1078,7 +1083,7 @@ class GridTraderHttp():
         
         #计算出每格资金,数据不变
         fund_per_grid=self.grid_ammount/self.grid_gridqty
-        fund_per_grid=GridTraderHttp.cut(fund_per_grid,self.api_pricereserve)
+        fund_per_grid=Func_DecimalCut2(fund_per_grid,self.api_pdigit,self.api_pmin)
 
         #计算出每格的纯利润,数据不变
         # net_profit=((1+self.grid_maker)**2)*(1+self.ratio_per_grid)-1
@@ -1087,8 +1092,10 @@ class GridTraderHttp():
         flag,self.grid_list=GridTraderHttp.create_grid_list(self.ratio_per_grid,self.grid_taker,fund_per_grid,{
             'GridQty':self.grid_gridqty,
             'LowBound':self.grid_lowbound,
-            'PriceReserve':self.api_pricereserve,
-            'QtyReserve':self.api_qtyreserve},factor)
+            'PMin':self.api_pmin,
+            'PDigit':self.api_pdigit,
+            'QMin':self.api_qmin,
+            'QDigit':self.api_qdigit},factor)
 
         self.grid_list.sort(key=lambda x: x['LowPrice'])
 
@@ -1123,7 +1130,7 @@ class GridTraderHttp():
         
         #根据最新价计算要入场手数
         qty=self.calc_open_qty(last)
-        qty=GridTraderHttp.cut(qty,self.api_qtyreserve)
+        qty=Func_DecimalCut2(qty,self.api_qdigit,self.api_qmin)
         self.log(f'计算需要买入手数为{qty}')
         remain_buy_qty=0
 
@@ -1146,7 +1153,7 @@ class GridTraderHttp():
                 remain_buy_qty=qty-symbol_qty
                 self.has_qty=symbol_qty
 
-        remain_buy_qty=GridTraderHttp.cut(remain_buy_qty,self.api_qtyreserve)
+        remain_buy_qty=Func_DecimalCut2(remain_buy_qty,self.api_qdigit,self.api_qmin)
         self.log(f'扣除已有手数,还需要买入手数为{remain_buy_qty}')
 
         #进场
@@ -1610,8 +1617,12 @@ class GridTraderHttp():
     def create_grid_list(ratio,taker, fund,data,factor=0):
         grid_qty=int(data['GridQty'])
         low_bound=float(data['LowBound'])
-        price_reserve=int(data['PriceReserve'])
-        qty_reserve=int(data['QtyReserve'])
+        # price_reserve=int(data['PriceReserve'])
+        # qty_reserve=int(data['QtyReserve'])
+        pmin=data['PMin']
+        pdigit=data['PDigit']
+        qmin=data['QMin']
+        qdigit=data['QDigit']
 
         grid_list=[]
         factor_m=0
@@ -1619,17 +1630,17 @@ class GridTraderHttp():
             factor_m=factor*i
             #此格的下沿价格
             low_price=low_bound*(1+ratio)**(i)
-            low_price=GridTraderHttp.cut(low_price,price_reserve)+factor_m
+            low_price=Func_DecimalCut2(low_price,pdigit,pmin)+factor_m
             #此格的上沿价格
             up_price=low_price*(1+ratio)
-            up_price=GridTraderHttp.cut(up_price,price_reserve)+factor_m
+            up_price=Func_DecimalCut2(up_price,pdigit,pmin)+factor_m
             #此格买入的手数
             buy_qty=fund/low_price
-            buy_qty=GridTraderHttp.cut(buy_qty,qty_reserve)
+            buy_qty=Func_DecimalCut2(buy_qty,qdigit,qmin)
             
             #此格卖出的手数
             sell_qty=buy_qty*(1-taker)
-            sell_qty=GridTraderHttp.cut(sell_qty,qty_reserve)
+            sell_qty=Func_DecimalCut2(sell_qty,qdigit,qmin)
             if buy_qty < sys.float_info.epsilon or sell_qty < sys.float_info.epsilon:
                 return False,None
 
@@ -1706,23 +1717,25 @@ class GridTraderHttp():
         
 
     def read_config_by_obj(self,api,jsondata):
+        from ..GridManager import GridManager
         #print(str(jsondata))
         flag,msg=GridTraderHttp.parms_check(jsondata)
         if flag==False:
             return False,msg
 
         exchange=jsondata['Exchange']
-        symbol=jsondata['Symbol']
+        
+        symbol_info=GridManager().get_symbol_by_id(jsondata['SymbolId'])
 
         #exchange
         self.api_exchange=exchange
 
         #交易品种
-        self.api_symbol=symbol
+        self.api_symbol=symbol_info['symbol']
 
-        logname=exchange+symbol+'.log'
+        logname=exchange+self.api_symbol+'.log'
         self.gl_logfile=logname
-        orderfile=exchange+symbol+'.csv'
+        orderfile=exchange+self.api_symbol+'.csv'
         self.gl_orderfile=orderfile
 
         #apikey
@@ -1740,10 +1753,15 @@ class GridTraderHttp():
             self.api_subaccount=subaccount
 
         #价格保留数
-        self.api_pricereserve=int(jsondata['PriceReserve'])
+        # self.api_pricereserve=int(jsondata['PriceReserve'])
+        self.api_pmin=symbol_info['pmin']
+        self.api_pdigit=symbol_info['pdigit']
+        
 
         #手数保留数
-        self.api_qtyreserve=int(jsondata['QtyReserve'])
+        # self.api_qtyreserve=int(jsondata['QtyReserve'])
+        self.api_qmin=symbol_info['qmin']
+        self.api_qdigit=symbol_info['qdigit']
 
         #天地格
         self.grid_upbound=float(jsondata['UpBound'])
@@ -1804,10 +1822,6 @@ class GridTraderHttp():
             return str_json['error']
         except:
             return strr
-    
-    @staticmethod
-    def cut(f,n):
-        return float(int(f*10**n)/10**n)
 
 if __name__ == '__main__':
     file=''

@@ -1,4 +1,3 @@
-from pickle import MARK
 #from zoneinfo import available_timezones
 from policies.CommonGridTrader import *
 import sys
@@ -42,6 +41,7 @@ class HalfGridTrader(IGridTrader):
     #参数检查
     @staticmethod
     def parms_check(json_data):
+        from ..GridManager import GridManager
         exchange=json_data.get('Exchange')
         if exchange == None or len(exchange)==0:
             return False,'缺少交易所名称'
@@ -52,13 +52,23 @@ class HalfGridTrader(IGridTrader):
            exchange.lower()!=GATE:
             return False,'交易所设置错误,目前只支持OKEX,FTX或BINANCE'
         
-        symbol=json_data.get('Symbol')
-        if symbol==None or len(symbol)==0:
-            return False,'交易所品种必须要设置'
+        # symbol=json_data.get('Symbol')
+        # if symbol==None or len(symbol)==0:
+        #     return False,'交易所品种必须要设置'
         
-        price_res=json_data.get('PriceReserve')
-        if price_res == None or int(price_res)<0 or int(price_res)>8:
-            return False,'价格保留位数设置错误,必须大于0小于8'
+        # price_res=json_data.get('PriceReserve')
+        # if price_res == None or int(price_res)<0 or int(price_res)>8:
+        #     return False,'价格保留位数设置错误,必须大于0小于8'
+        
+        symbol_id=json_data.get('SymbolId')
+        if symbol_id==None:
+            return False,'交易品种没选择'
+        
+        symbol_info=GridManager().get_symbol_by_id(symbol_id)
+        if symbol_info==None:
+            return False,'交易品种选择错误'
+        
+        
 
         up_bound=json_data.get('UpBound')
         if up_bound ==None or float(up_bound) < sys.float_info.epsilon:
@@ -99,6 +109,7 @@ class HalfGridTrader(IGridTrader):
     #网格计算
     @staticmethod
     def grid_calc(api,data):
+        from ..GridManager import GridManager
         #创建交易所对象
         ex_name=data['Exchange']
         trader=TraderAPI()
@@ -106,19 +117,20 @@ class HalfGridTrader(IGridTrader):
         if flag==False:
             return False,f'交易所{ex_name}不支持'
         
-        symbol=data['Symbol']
+        symbol_id=data['SymbolId']
+        symbol_info=GridManager().get_symbol_by_id(symbol_id)
+        
                          
         #账号费率
         grid_maker=0.0
         grid_taker=0.0
         if ex_name!=FTX:
-            grid_maker,grid_taker=trader.FetchTradingFee(symbol)
+            grid_maker,grid_taker=trader.FetchTradingFee(symbol_info['symbol'])
         
         up_bound=float(data['UpBound'])
         grid_qty=int(data['GridQty'])
         amount=float(data['Amount'])
-        price_res=int(data['PriceReserve'])
-        qty_res=int(data['QtyReserve'])
+        
         lower=0.0
         open=float(data['Open'])
         ticker=None
@@ -126,7 +138,7 @@ class HalfGridTrader(IGridTrader):
 
         #如果开仓价为0,那么最新价为最低价
         if open<sys.float_info.epsilon:
-            ticker=trader.FetchTicker(symbol)
+            ticker=trader.FetchTicker(symbol_info['symbol'])
             if ticker==None:
                 return False,'获取最新价格失败',None
             
@@ -148,8 +160,10 @@ class HalfGridTrader(IGridTrader):
             'Fund':fund_per_grid,
             'Qty':grid_qty,
             'Lower':lower,
-            'PriceRes':price_res,
-            'QtyRes':qty_res
+            'PMin':symbol_info['pmin'],
+            'PDigit':symbol_info['pdigit'],
+            'QMin':symbol_info['qmin'],
+            'QDigit':symbol_info['qdigit']
         })
         if grid_list==None or len(grid_list)==0:
             return False,'创建网格失败',None
@@ -189,6 +203,7 @@ class HalfGridTrader(IGridTrader):
 
     #读取配置
     def read_config_by_obj(self,api,json_data):
+        from ..GridManager import GridManager
         #入参数据检查
         flag,msg=HalfGridTrader.parms_check(json_data)
         if flag==False:
@@ -196,9 +211,14 @@ class HalfGridTrader(IGridTrader):
         
         #exchange
         self.api_exchange=json_data['Exchange']
-
-        #symbol
-        self.api_symbol=json_data['Symbol']
+        
+        
+        #symbol info
+        symbol_info = GridManager().get_symbol_by_id(json_data['SymbolId'])
+        self.api_symbol=symbol_info['symbol']
+        
+        # #symbol
+        # self.api_symbol=json_data['Symbol']
 
         #coin
         symbollist=self.api_symbol.split('/')
@@ -220,11 +240,16 @@ class HalfGridTrader(IGridTrader):
         if subaccount!=None and len(subaccount)!=0:
             self.api_subaccount=subaccount
 
-        #价格保留数
-        self.api_pricereserve=int(json_data['PriceReserve'])
+        # #价格保留数
+        # self.api_pricereserve=int(json_data['PriceReserve'])
+        self.api_pmin=symbol_info['pmin']
+        self.api_pdigit=symbol_info['pdigit']
+        
+        # #手数保留数
+        self.api_qmin=symbol_info['qmin']
+        self.api_qdigit=symbol_info['qdigit']
 
-        #手数保留数
-        self.api_qtyreserve=int(json_data['QtyReserve'])
+        # self.api_qtyreserve=int(json_data['QtyReserve'])
 
         #天格
         self.grid_upbound=float(json_data['UpBound'])
@@ -310,7 +335,7 @@ class HalfGridTrader(IGridTrader):
 
         #计算出每格资金,
         fund_per_grid=self.grid_ammount/self.grid_gridqty
-        fund_per_grid=Func_DecimalCut(fund_per_grid,self.api_pricereserve)
+        fund_per_grid=Func_DecimalCut2(fund_per_grid,self.api_pdigit,self.api_pmin)
 
         #计算出每格的纯利润,数据不变
         #net_profit=((1+self.grid_maker)**2)*(1+ratio_per_grid)-1
@@ -322,8 +347,10 @@ class HalfGridTrader(IGridTrader):
             'Fund':fund_per_grid,
             'Qty':self.grid_gridqty,
             'Lower':grid_lowbound,
-            'PriceRes':self.api_pricereserve,
-            'QtyRes':self.api_qtyreserve
+            'PMin':self.api_pmin,
+            'PDigit':self.api_pdigit,
+            'QMin':self.api_qmin,
+            'QDigit':self.api_qdigit
         })
         self.grid_list.sort(key=lambda x:x['LowPrice'])
 
@@ -524,7 +551,7 @@ class HalfGridTrader(IGridTrader):
                 if(has_qty<qty):
                     qty=has_qty
                 has_qty=has_qty-qty
-                qty=Func_DecimalCut(qty,self.api_qtyreserve)
+                qty=Func_DecimalCut2(qty,self.api_qdigit,self.api_qmin)
                 price=item['UpPrice']
                 side=SELL
             else:

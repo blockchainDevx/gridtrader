@@ -1,10 +1,12 @@
-from common.common import BUY,SELL,MARKET,RecordData,Func_DecimalCut
+from common.common import BUY,SELL,MARKET,RecordData,Func_DecimalCut2
 import traceback
 
 def trade_by_qty(side,item,data):
     symbol=data['Symbol']
     qty=data['Qty']
-    qty_res=data['QtyRes']
+    # qty_res=data['QtyRes']
+    qmin=data['QMin']
+    qdigit=data['QDigit']
     
     tradehd=item.get('TraderHD')
     taker=item.get('Taker')
@@ -25,7 +27,7 @@ def trade_by_qty(side,item,data):
                             format(tradehd.group_name,msg,qty,balance))
         else:
             #卖,查出来全卖掉
-            sell_qty=Func_DecimalCut(qty*(1-taker),qty_res)
+            sell_qty=Func_DecimalCut2(qty*(1-taker),qdigit,qmin)
             order,err_msg=tradehd.CreateOrder(symbol,MARKET,SELL,sell_qty)
             msg=''
             if order==None:

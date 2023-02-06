@@ -2,9 +2,7 @@ import threading
 import ccxt
 import sys
 
-from common.common import Func_DecimalCut
-
-from common import Log
+from common.common import LOG_STORE, Func_DecimalCut2,Record
 
 #
 class IGridTrader():
@@ -50,33 +48,37 @@ def Func_CreateGrid(data):
     fund=data.get('Fund')
     qty=data.get('Qty')
     lower=data.get('Lower')
-    price_res=data.get('PriceRes')
-    qty_res=data.get('QtyRes')
+    pmin=data.get('PMin')
+    pdigit=data.get('PDigit')
+    qmin=data.get('QMin')
+    qdigit=data.get('QDigit')
 
     if ratio==None \
         or taker==None \
         or fund==None \
         or qty==None \
         or lower==None \
-        or price_res==None \
-        or qty_res==None:
+        or pmin==None \
+        or pdigit==None \
+        or qmin==None \
+        or qdigit==None:
         return None
     
     grid_list=[]
     for i in range(0,qty):
         #此格的下沿价格
         low_price=lower*(1+ratio)**(i)
-        low_price=Func_DecimalCut(low_price,price_res)
+        low_price=Func_DecimalCut2(low_price,pdigit,pmin)
         #此格的上沿价格
         up_price=low_price*(1+ratio)
-        up_price=Func_DecimalCut(up_price,price_res)
+        up_price=Func_DecimalCut2(up_price,pdigit,pmin)
         #此格买入的手数
         buy_qty=fund/low_price
-        buy_qty=Func_DecimalCut(buy_qty,qty_res)
+        buy_qty=Func_DecimalCut2(buy_qty,qdigit,qmin)
         
         #此格卖出的手数
         sell_qty=fund/low_price*(1-taker)
-        sell_qty=Func_DecimalCut(sell_qty,qty_res)
+        sell_qty=Func_DecimalCut2(sell_qty,qdigit,qmin)
         if buy_qty < sys.float_info.epsilon or sell_qty < sys.float_info.epsilon:
             return False,None
 
@@ -88,7 +90,7 @@ def Func_CreateGrid(data):
             ('Id',''),
             ('Side','')
             ]))
-        Log.Logger().log(f'网格编号{i+1} 下沿价格:{low_price},上沿价格:{up_price},买入手数:{buy_qty},卖出手数:{sell_qty}')
+        Record(f'网格编号{i+1} 下沿价格:{low_price},上沿价格:{up_price},买入手数:{buy_qty},卖出手数:{sell_qty}',level=LOG_STORE)
     return grid_list
     pass
 

@@ -1,13 +1,17 @@
-from common.common import BUY, LOG_STORE,SELL,LIMIT,MARKET,RecordData,Func_DecimalCut,Record
+from common.common import BUY, LOG_STORE,SELL,LIMIT,MARKET,RecordData,Func_DecimalCut2,Record
 from .MasterCoin import TradePairHandle
 import traceback
 
 def trade_by_ammount_ok(side,item,data):
     amounttype=data['AmmountType']
     symbol=data['Symbol']
-    qty_res=data['QtyRes']
+    qmin=data['QMin']
+    qdigit=data['QDigit']
+    # qty_res=data['QtyRes']
     stop_percent=data['StopPercent']
-    price_res=data['PriceRes']
+    # price_res=data['PriceRes']
+    pmin=data['PMin']
+    pdigit=data['PDigit']
     
     tradehd=item.get('TraderHD')
     if tradehd==None:
@@ -30,12 +34,12 @@ def trade_by_ammount_ok(side,item,data):
             if tick==None:
                 RecordData(f'账号 {tradehd.group_name} 查询 {symbol} 最新价失败')
                 return None,None
-            qty= Func_DecimalCut(amount/tick['last'],qty_res)
+            qty= Func_DecimalCut2(amount/tick['last'],qdigit,qmin)
             
             #配置了止损比例,根据当前价计算出止损价
             stop_price=0.0
             if stop_percent >0 and stop_percent < 1:
-                stop_price=Func_DecimalCut(tick['last']*(1-stop_percent),price_res)
+                stop_price=Func_DecimalCut2(tick['last']*(1-stop_percent),pdigit,pmin)
             
             #下单
             order,err_msg=tradehd.CreateOrder(symbol,LIMIT,BUY,qty,tick['last']) if stop_price == 0 else \
@@ -71,7 +75,7 @@ def trade_by_ammount_ok(side,item,data):
             
             #查看币量
             qty=float(balance['total'][coin])
-            qty=Func_DecimalCut(qty,qty_res)
+            qty=Func_DecimalCut2(qty,qdigit,qmin)
             #下单
             order,err_msg = tradehd.CreateOrder(symbol,MARKET,SELL,qty)
             

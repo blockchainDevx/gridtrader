@@ -1,10 +1,13 @@
-from common.common import BUY,SELL,LIMIT,RecordData,Func_DecimalCut
+from common.common import BUY,SELL,LIMIT,RecordData,Func_DecimalCut2
 from .MasterCoin import TradePairHandle
 import traceback
 def trade_by_ammount_gate(side,item,data):
     ammount_type=data['AmmountType']
     symbol=data['Symbol']
-    qty_res=data['QtyRes']
+    pmin=data['PMin']
+    pdigit=data['PDigit']
+    qmin=data['QMin']
+    qdigit=data['QDigit']
     stop_percent=data['StopPercent']
     price_res=data['PriceRes']
 
@@ -30,12 +33,12 @@ def trade_by_ammount_gate(side,item,data):
                 RecordData(f'账号 {tradehd.group_name} 查询{symbol}最新价失败')
                 return None,None
             last=tick['last']
-            qty= Func_DecimalCut(amount/last,qty_res)
+            qty= Func_DecimalCut2(amount/last,qdigit,qmin)
             
             #配置了止损比例,根据当前价计算出止损价
             stop_price=0.0
             if stop_percent >0 and stop_percent < 1:
-                stop_price=Func_DecimalCut(last*(1-stop_percent),price_res)
+                stop_price=Func_DecimalCut2(last*(1-stop_percent),pdigit,pmin)
             
             #下单
             order,err_msg=tradehd.CreateOrder(symbol,LIMIT,BUY,qty,last) if stop_price == 0 else \
@@ -67,7 +70,7 @@ def trade_by_ammount_gate(side,item,data):
             
             #获取账号币数量        
             qty=float(balance['total'][coin])
-            qty=Func_DecimalCut(qty,qty_res)
+            qty=Func_DecimalCut2(qty,qdigit,qmin)
             
             #获取币种最新价
             tick=tradehd.FetchTicker(symbol)

@@ -23,8 +23,10 @@ class SignPolicy(IGridTrader):
         self._con_data={
             'AmmountType':'',
             'Symbol':'',
-            'PriceRes':4,
-            'QtyRes':4,
+            'PMin':1,
+            'PDigit':2,
+            'QMin':1,
+            'QDigit':2,
             'StopPercent':0,
             'LastSide':SELL,  #对象初始化时上次的买卖信号设置为卖
             'IsMasterCoin':False  #是否为主流币
@@ -42,7 +44,8 @@ class SignPolicy(IGridTrader):
     def init(self,params):
         if 'symbol' not in params or \
             'keyName' not in params or \
-            'qtyRes' not in params or \
+            'qmin' not in params or \
+            'qdigit' not in params or\
             'signType' not in params or \
             'tpMode' not in params:
                 return False
@@ -58,12 +61,15 @@ class SignPolicy(IGridTrader):
             self._con_data['Qty']=int(params['qty'])
         self._keyname=params['keyName']
         self._signtype=params['signType']
-        self._con_data['QtyRes']=params['qtyRes']
+        self._con_data['QMin']=params['qmin']
+        self._con_data['QDigit']=params['QDigit']
+        
         
         #止损配置
-        if 'stopPer' in params and 'priceRes' in params:
+        if 'stopPer' in params and 'qmin' in params and 'qdigit' in params:
             self._con_data['StopPercent']=params['stopPer']
-            self._con_data['PriceRes']=self._con_data['QtyRes']
+            self._con_data['PMin']=self._con_data['QMin']
+            self._con_data['PDigit']=self._con_data['QDigit']
             
         #止盈配置
         if 'fltMode' in params and 'fltPoint' in params:
@@ -116,9 +122,12 @@ class SignPolicy(IGridTrader):
             #有止盈的执行止盈
             if side==BUY and qty!=None and price !=None: 
                 if self._tp_data['TPMode'] == TP_FIXED: #固定止盈
-                    qty_m=qty*(1-item['Taker'])   #根据账号的手续费率计算出买入扣费之后所得的币数量
-                    tp_data=CalcFixedTP(qty_m,price,self._con_data['QtyRes'],self._con_data['PriceRes'],
-                                                       self._is_master)
+                    #根据账号的手续费率计算出买入扣费之后所得的币数量
+                    qty_m=Func_DecimalCut2(qty*(1-item['Taker']),self._con_data['QDigit'],self._con_data['QMin'])   
+                    tp_data=CalcFixedTP(qty_m,price,
+                                        self._con_data['QMin'],self._con_data['QDigit'],
+                                        self._con_data['PMin'],self._con_data['PDigit'],
+                                        self._is_master)
                     #开启定时任务,检测止盈
                     if len(tp_data) >0:
                         SPQuoteMgr().addtask(FixedTPTask(item,self._con_data,tp_data))
@@ -127,7 +136,9 @@ class SignPolicy(IGridTrader):
                             msg=msg+'止盈点 {0},币数为 {1},价格为 {2}'.format(index,tp_data[index][0],tp_data[index][1])
                         RecordData(msg)
                 elif self._tp_data['TPMode'] ==  TP_FLOATING:
-                    qty_m=qty*(1-item['Taker'])
+                    #根据账号的手续费率计算出买入扣费之后所得的币数量
+                    qty_m=Func_DecimalCut2(qty*(1-item['Taker']),self._con_data['QDigit'],self._con_data['QMin'])   
+                    # qty_m=qty*(1-item['Taker'])
                     SPQuoteMgr().addtask(FloatingTPTask(item, 
                                                         self._con_data,
                                                         self._tp_data,

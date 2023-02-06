@@ -1,4 +1,4 @@
-from common.common import Func_DecimalCut
+from common.common import Func_DecimalCut2
 
 __all__=['CalcFixedTP']
 
@@ -32,18 +32,18 @@ CopycatQuote=[
     (0.5,  0.15)
 ]
 
-def CalcFixedTP(qty=0.0,price=0.0,qty_res=4,price_res=4,is_master=False):
-    return _calfixedtp(qty,price,qty_res,price_res,MasterQuote if is_master else CopycatQuote)
+def CalcFixedTP(qty,price,qmin,qdigit,pmin,pdigit,is_master=False):
+    return _calfixedtp(qty,price,qmin,qdigit,pmin,pdigit,MasterQuote if is_master else CopycatQuote)
   
-def _calfixedtp(qty,price,qty_res,price_res,quotes):
+def _calfixedtp(qty,price,qmin,qdigit,pmin,pdigit,quotes):
     qty_tol=0.0
-    lis=set()
+    lis=[]
     for item in quotes:
-        qty_m=Func_DecimalCut(qty*(item[1]),qty_res)
+        qty_m=Func_DecimalCut2(qty*(item[1]),qdigit,qmin)
         if qty_m <=0.0:
             continue
-        price_m=Func_DecimalCut(price*(1+item[0]),price_res)
+        price_m=Func_DecimalCut2(price*(1+item[0]),pdigit,pmin)
         qty_remaining=qty-qty_tol
-        lis.add((qty_m if qty_remaining > qty_m else qty_remaining,price_m))
+        lis.append((qty_m if qty_remaining > qty_m else qty_remaining,price_m))
         qty_tol=qty_tol+qty_m
     return lis

@@ -159,9 +159,7 @@ grids_map:{
         "title":tab1,
         "content":{
             'Exchange': '',
-            'Symbol': '', 
-            'PriceReserve': 6,
-            'QtyReserve': 6, 
+            'SymbolId': '', 
             'Open': 0, 
             'UpBound': 0, 
             'LowBound': 0, 
@@ -228,13 +226,15 @@ group_maps:{
 '''
 
 class GridManager(Singleton):
-    __grids_map={}
-    __api_groups={}
-    __trades_map={}
-    __group_infos={}
-    __lock=threading.Lock()
+    def __init__(self) -> None:
+        __grids_map={}
+        __api_groups={}
+        __trades_map={}
+        __group_infos={}
+        __symbol_tables=set()
+        __lock=threading.Lock()
 
-    sign={}
+        sign={}
     
     @staticmethod
     def metadata_encode(metadata):
@@ -307,6 +307,41 @@ class GridManager(Singleton):
                     'available':False
                 }
         return apis_map
+    
+    #获取品种的信息
+    def init_symbol_infos(self):
+        r'''
+        +----------+--------------+------+-----+---------+----------------+
+        | id       | int unsigned | NO   | PRI | NULL    | auto_increment |
+        | name     | varchar(40)  | NO   |     | NULL    |                |
+        | exchange | varchar(40)  | NO   |     | NULL    |                |
+        | qmin     | int          | NO   |     | NULL    |                |
+        | qdigit   | int          | NO   |     | NULL    |                |
+        | pmin     | int          | NO   |     | NULL    |                |
+        | pdigit   | int          | NO   |     | NULL    |                |
+        +----------+--------------+------+-----+---------+----------------+
+        '''
+        sql='select * from `symbol_tables`'
+        flag,count,res=SqlHandler.Query(sql)
+        if flag==True:
+            for i in range(0,res):
+                exchange=count[i]['exchange']
+                symbol=count[i]['name']
+                id=count[i]['id']
+                qmin=int(count[i]['qmin'])
+                qdigit=int(count[i]['qdigit'])
+                pmin=int(count[i]['pmin'])
+                pdigit=int(count[i]['pdigit'])
+                self.__symbol_tables.add({
+                    'id':id,
+                    'exchange':exchange,
+                    'symbol':symbol,
+                    'qmin':qmin,
+                    'qdigit':qdigit,
+                    'pmin':pmin,
+                    'pdigit':pdigit,
+                })
+        pass
         
     def get_tabs(self):
         r'''
@@ -469,9 +504,7 @@ class GridManager(Singleton):
         content={
             'GridType':'',
             'Exchange': '',
-            'Symbol': '', 
-            'PriceReserve': 6,
-            'QtyReserve': 6, 
+            'SymbolId': -1, 
             'Open': 0, 
             'UpBound': 0, 
             'LowBound': 0, 
@@ -543,9 +576,7 @@ class GridManager(Singleton):
                 'content':{
                     'GridType':data['GridType'],
                     'Exchange':data['Exchange'],
-                    'Symbol':data['Symbol'],
-                    'PriceReserve':data['PriceReserve'],
-                    'QtyReserve':data['QtyReserve'],
+                    'SymbolId':data['SymbolId'],
                     'Open':data['Open'],
                     'UpBound':data['UpBound'],
                     'LowBound':data['LowBound'],
@@ -569,9 +600,7 @@ class GridManager(Singleton):
             item['title']=title
             item['content']['GridType']=data['GridType']
             item['content']['Exchange']=data['Exchange']
-            item['content']['Symbol']=data['Symbol']
-            item['content']['PriceReserve']=data['PriceReserve']
-            item['content']['QtyReserve']=data['QtyReserve']
+            item['content']['SymbolId']=data['SymbolId']
             item['content']['Open']=data['Open']
             item['content']['UpBound']=data['UpBound']
             item['content']['LowBound']=data['LowBound']
@@ -617,6 +646,112 @@ class GridManager(Singleton):
                 'exchange':exchange
             })
         return http_response(GROUPS,'',0,'ok',data)
+    
+    #添加品种信息
+    def add_symbol_info(self,data):
+        if data== None or len(data)==None:
+            return http_response(ADDSYMBOL,'',-1,'传输数据错误')
+        
+        try:
+            
+            doc_data=json.loads(data)
+            if doc_data==None:
+                return http_response(ADDSYMBOL,'',-1,'添加品种信息错误,传输的数据格式错误')
+            if 'exchange' not in doc_data or \
+                'symbol' not in doc_data or \
+                'pmin' not in doc_data or \
+                'qmin' not in doc_data:
+                return http_response(ADDSYMBOL,'',-1,'添加品种信息错误,传输的数据有缺失')
+            
+            exchange=doc_data['exchange']
+            symbol=doc_data['symbol']
+            str_pmin=(doc_data['pmin'])
+            str_qmin=(doc_data['qmin'])
+            pdigit=get_decimal_places(str_pmin)
+            qdigit=get_decimal_places(str_qmin)
+            pmin=int(str_pmin*pdigit)
+            qmin=int(str_qmin*qdigit)
+            
+            #添加数据库
+            sql='insert into `symbol_tables` (`exchange`,`name`,`pmin`,`pdigit`,`qmin`,`qdigit`) values(%(exchange)s\
+                ,%(name)s,%(pmin)s,%(pdigit)s,%(qmin)s,%qdigit))'
+            data={'exchange':exchange,'name':symbol,'pmin':pmin,'pdigit':pdigit,'qmin':qmin,'qdigit':qdigit}
+            id=SqlHandler.Insert(sql,data)
+            if id==-1:
+                return http_response(ADDSYMBOL,'',-1,'添加品种数据错误,数据库添加失败')
+            self.__symbol_tables.add(
+                {
+                    'id':id,
+                    'exchange':doc_data['exchange'],
+                    'symbol':doc_data['symbol'],
+                    'pmin':pmin,
+                    'pdigit':pdigit,
+                    'qmin':qmin,
+                    'qdigit':qdigit
+                }
+            )
+            
+            return http_response(ADDSYMBOL,'',0,'OK',{'id':id})
+        except:
+            return http_response(ADDSYMBOL,'',-1,'添加品种信息错误,传输的数据格式错误')
+        
+        pass
+    
+    #通过交易所来获取该交易所支持的所有品种数据
+    def get_symbols_by_ex(self,data):
+        exchange=data.get('exchange')
+        if exchange==None:
+            return http_response(SYMBOLS,'',-1,'获取交易所品种失败,条件错误')
+        symbols=None
+        for i in range(0,len(self.__symbol_tables)):
+            if exchange==self.__symbol_tables[i]['exchange']:
+                symbols=self._symbol_tables[i]
+                break
+                
+        if symbols ==None:
+            return http_response(SYMBOLS,'',-1,'获取交易所品种数据失败,交易所不存在')
+        else:
+            symbollist=[]
+            for i in range(0,len(symbols)):
+                symbollist.appned({
+                    'id':symbols[i]['id'],
+                    'symbol':symbols[i]['symbol'],
+                    'exchange':symbols[i]['exchange']
+                })
+            return http_response(SYMBOLS,'',0,'OK',symbollist)
+            pass
+        
+    #通过ID删除品种数据
+    def del_symbol_by_id(self,data):
+        try:
+            id=data.get('id')
+            if id==None or len(id)==0:
+                return http_response(DELSYMBOL,'',-1,'删除品种错误,没有传入ID')
+            id=int(id)
+            for i in range(0,len(self.__symbol_tables)):
+                if id== self.__symbol_tables[i]['id']:
+                    del self.__symbol_tables[i]
+                    
+        except:
+            msg=traceback.format_exc()
+            Record(msg,level=LOG_STORE)
+    
+    @staticmethod
+    def del_symbol_from_db_by_id(id):
+        try:
+            sql='del * from `symbol_tables` where `id`=%s'
+            SqlHandler.Delete(sql,id)
+        except:
+            msg=traceback.format_exc()
+            Record(msg,level=LOG_STORE)
+        
+    def get_symbol_by_id(self,id):
+        if id == None or id <0:
+            return None
+        for i in range(0,len(self.__symbol_tables)):
+            if id== self.__symbol_tables[i]['id']:
+                return  self.__symbol_tables[i]
+        return None
 
     def check_start(self,data):
         id= data.get('id')
@@ -933,15 +1068,17 @@ class GridManager(Singleton):
     def create_trades(self,id,data,title):
         
         groupidlist=data['GroupList']
-        symbol=data['Symbol']
         signtype=data['SignType']
         qty=int(data['Qty'])
-        qtyres=int(data['QtyReserve'])
-        prres=int(data['PriceReserve'])
+        symbol_id=data['SymbolId']
         stop=float(data['Stop'])
-        exchange=data['Exchange']
         tp_mode=data['TPMode']
         
+        symbol_info=self.get_symbol_by_id(symbol_id)
+        if symbol_info==None:
+            return http_response(START,id,-1,f'品种选择错误,没有这个品种')
+        
+        symbol=symbol_info['symbol']
         strs= symbol.split('/')
         if len(strs)!=2:
             return http_response(START,id,-1,f'品种格式不对{symbol}')
@@ -950,7 +1087,8 @@ class GridManager(Singleton):
         params={
             'symbol':symbol,
             'keyName': title,
-            'qtyRes':qtyres,
+            'qmin':symbol_info['qmin'],
+            'qdigit':symbol_info['qdigit'],
             'signType':signtype,
             'qty':qty,
             'tpMode':tp_mode,
@@ -958,7 +1096,8 @@ class GridManager(Singleton):
         
         #止损配置
         if stop != 0.0:
-            params['priceRes']=prres
+            params['pmin']=symbol_info['pmin']
+            params['pdigit']=symbol_info['pdigit']
             params['stopPer']=stop
             
         #止盈配置
@@ -1201,6 +1340,8 @@ class GridManager(Singleton):
                 return self.grid_init()
             elif strs[0]==GROUPS:
                 return self.get_groups()
+            elif strs[0]==SYMBOLS:
+                return self.get_symbols_by_ex(strs[1])
             elif strs[0]==CHKST:
                 data=urldata_parse(strs[1])
                 return self.check_start(data)
@@ -1211,39 +1352,49 @@ class GridManager(Singleton):
     def post_handler(self,path,body):
         if path not in  (SIGN_UT,SIGN_STC_COLOR,SIGN_STC_VALUE):
            Record( 'POST:{0},{1}'.format(path,body),None,LOG_STORE)
-        if path==ADD:
-            data = json.loads(body)
-            return self.grid_add(data)
-        elif path==START:
-            data = json.loads(body)
-            return self.grid_start(data)
-        elif path==STOP:
-            data = json.loads(body)
-            return self.grid_stop(data)
-        elif path==UPDATE:
-            data = json.loads(body)
-            return self.grid_update(data)
-        elif path==DEL:
-            data = json.loads(body)
-            return self.grid_del(data)
-        elif path==ADDAPI:
-            data = json.loads(body)
-            return self.add_api(data)
-        elif path==ADDAPIGROUP:
-            data = json.loads(body)
-            return self.bind_api_group(data)
-        elif path==SIGN_UT:
-            data= self.ut_loads(body)
-            return  self.sign_ut(data)
-        elif path==SIGN_STC_VALUE:
-            data=self.value_loads(body)
-            return  self.sign_stc_value(data)
-        elif path==SIGN_STC_COLOR:
-            data=self.color_loads(body)
-            return  self.sign_stc_color(data)
-        else:
-            pass
-        
+        try:
+            
+            if path==ADD:
+                data = json.loads(body)
+                return self.grid_add(data)
+            elif path==START:
+                data = json.loads(body)
+                return self.grid_start(data)
+            elif path==STOP:
+                data = json.loads(body)
+                return self.grid_stop(data)
+            elif path==UPDATE:
+                data = json.loads(body)
+                return self.grid_update(data)
+            elif path==DEL:
+                data = json.loads(body)
+                return self.grid_del(data)
+            elif path==ADDAPI:
+                data = json.loads(body)
+                return self.add_api(data)
+            elif path==ADDAPIGROUP:
+                data = json.loads(body)
+                return self.bind_api_group(data)
+            elif path==ADDSYMBOL:
+                data=json.loads(body)
+                return self.add_symbol_info(data)
+            elif path==DELSYMBOL:
+                data=json.loads(body)
+                return self.del_symbol_by_id(data)
+            elif path==SIGN_UT:
+                data= self.ut_loads(body)
+                return  self.sign_ut(data)
+            elif path==SIGN_STC_VALUE:
+                data=self.value_loads(body)
+                return  self.sign_stc_value(data)
+            elif path==SIGN_STC_COLOR:
+                data=self.color_loads(body)
+                return  self.sign_stc_color(data)
+            else:
+                pass
+        except:
+            msg=traceback.format_exc()
+            return http_response(path,'',-1,msg)
     
     
     def ut_loads(self,body):  
