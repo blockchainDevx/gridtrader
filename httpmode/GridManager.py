@@ -226,15 +226,15 @@ group_maps:{
 '''
 
 class GridManager(Singleton):
-    def __init__(self) -> None:
-        __grids_map={}
-        __api_groups={}
-        __trades_map={}
-        __group_infos={}
-        __symbol_tables=set()
-        __lock=threading.Lock()
+    # def __init__(self):
+    __grids_map={}
+    __api_groups={}
+    __trades_map={}
+    __group_infos={}
+    __symbol_tables=set()
+    __lock=threading.Lock()
 
-        sign={}
+    sign={}
     
     @staticmethod
     def metadata_encode(metadata):
@@ -629,7 +629,8 @@ class GridManager(Singleton):
             })
         return http_response(INIT,'',0,'OK',data)
     
-    def get_groups(self):
+    def get_groups(self,data):
+        exchange=data.get('exchange')
         sql= 'select * from `group_infos`'
         flag,count,list=SqlHandler.Query(sql)
         if flag==False:
@@ -637,6 +638,9 @@ class GridManager(Singleton):
 
         data=[]
         for i in range(0,len(list)):
+            if exchange!=None and exchange!=list[i].get('exchange'):
+                continue
+            
             id=list[i].get('groupid')
             name=list[i].get('groupname')
             exchange=list[i].get('exchange')
@@ -1339,9 +1343,11 @@ class GridManager(Singleton):
             elif strs[0]==INIT:
                 return self.grid_init()
             elif strs[0]==GROUPS:
-                return self.get_groups()
+                data=urldata_parse(strs[1])
+                return self.get_groups(data)
             elif strs[0]==SYMBOLS:
-                return self.get_symbols_by_ex(strs[1])
+                data=urldata_parse(strs[1])
+                return self.get_symbols_by_ex(data)
             elif strs[0]==CHKST:
                 data=urldata_parse(strs[1])
                 return self.check_start(data)
