@@ -19,9 +19,32 @@ ADDAPI='/api/addapi'
 CHKST='/api/isstart'
 GROUPS='/api/groups'
 ADDAPIGROUP='/api/addapigroup'
-SYMBOLS='/api/getsymbolsinfobyex'
+SYMBOLS='/api/getsymbolslistbyex'
+SYMBOL='/api/getsymbolinfobyid'
 ADDSYMBOL='/api/addsymbolinfo'
-DELSYMBOL='/api/delsymbolinfo'
+DELSYMBOL='/api/delsymbolinfobyid'
+UPTSYMBOL='/api/updatesymbolinfobyid'
+
+APISPATH={
+    LOGIN,
+    CALC,
+    START,
+    STOP,
+    ADD,
+    UPDATE,
+    DEL,
+    INIT,
+    QUERY,
+    ADDAPI,
+    CHKST,
+    GROUPS,
+    ADDAPIGROUP,
+    SYMBOLS,
+    SYMBOL,
+    ADDSYMBOL,
+    DELSYMBOL,
+    UPTSYMBOL
+}
 
 #信号路径
 SIGN_UT='/api/ut'
@@ -158,14 +181,18 @@ def greater_or_equal(a,b,ret=0):
     return (a-b)>sys.float_info.epsilon or \
         math.isclose(a,b,rel_tol=math.pow(10,-ret))
 
-LOG_ALL=2
+LOG_ALL=3
+LOG_CONSOLE=2
 LOG_STORE=1
 LOG_WS=0
 
 def Record(msg,msgtype=WS_DATA,level=1):
+    
     if level == LOG_ALL:
         Log.log(msg)
         WebPush().sendmsg(msg,msgtype)
+    elif level==LOG_CONSOLE:
+        print(msg)
     elif level == LOG_STORE:
         Log.log(msg)
     elif level == LOG_WS:

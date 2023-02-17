@@ -62,8 +62,7 @@ class SignPolicy(IGridTrader):
         self._keyname=params['keyName']
         self._signtype=params['signType']
         self._con_data['QMin']=params['qmin']
-        self._con_data['QDigit']=params['QDigit']
-        
+        self._con_data['QDigit']=params['qdigit']
         
         #止损配置
         if 'stopPer' in params and 'qmin' in params and 'qdigit' in params:

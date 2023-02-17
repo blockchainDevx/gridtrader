@@ -231,7 +231,7 @@ class GridManager(Singleton):
     __api_groups={}
     __trades_map={}
     __group_infos={}
-    __symbol_tables=set()
+    __symbol_tables=[]
     __lock=threading.Lock()
 
     sign={}
@@ -271,6 +271,9 @@ class GridManager(Singleton):
 
         #遍历api_map和api_group,
         self.api_groups_compose(api_maps,groups)
+        
+        #取出 symbols
+        self.init_symbol_infos()
  
     def get_accounts(self):
         r'''
@@ -324,15 +327,15 @@ class GridManager(Singleton):
         sql='select * from `symbol_tables`'
         flag,count,res=SqlHandler.Query(sql)
         if flag==True:
-            for i in range(0,res):
-                exchange=count[i]['exchange']
-                symbol=count[i]['name']
-                id=count[i]['id']
-                qmin=int(count[i]['qmin'])
-                qdigit=int(count[i]['qdigit'])
-                pmin=int(count[i]['pmin'])
-                pdigit=int(count[i]['pdigit'])
-                self.__symbol_tables.add({
+            for i in range(0,len(res)):
+                exchange=res[i]['exchange']
+                symbol=res[i]['name']
+                id=res[i]['id']
+                qmin=int(res[i]['qmin'])
+                qdigit=int(res[i]['qdigit'])
+                pmin=int(res[i]['pmin'])
+                pdigit=int(res[i]['pdigit'])
+                self.__symbol_tables.append({
                     'id':id,
                     'exchange':exchange,
                     'symbol':symbol,
@@ -658,36 +661,38 @@ class GridManager(Singleton):
         
         try:
             
-            doc_data=json.loads(data)
-            if doc_data==None:
-                return http_response(ADDSYMBOL,'',-1,'添加品种信息错误,传输的数据格式错误')
-            if 'exchange' not in doc_data or \
-                'symbol' not in doc_data or \
-                'pmin' not in doc_data or \
-                'qmin' not in doc_data:
+            
+
+            if 'exchange' not in data or \
+                'symbol' not in data or \
+                'priceRes' not in data or \
+                'qtyRes' not in data:
                 return http_response(ADDSYMBOL,'',-1,'添加品种信息错误,传输的数据有缺失')
             
-            exchange=doc_data['exchange']
-            symbol=doc_data['symbol']
-            str_pmin=(doc_data['pmin'])
-            str_qmin=(doc_data['qmin'])
+            str_pmin=(data['priceRes'])
+            str_qmin=(data['qtyRes'])
             pdigit=get_decimal_places(str_pmin)
             qdigit=get_decimal_places(str_qmin)
-            pmin=int(str_pmin*pdigit)
-            qmin=int(str_qmin*qdigit)
+            pmin=int(float(str_pmin)*10**pdigit)
+            qmin=int(float(str_qmin)*10**qdigit)
             
-            #添加数据库
-            sql='insert into `symbol_tables` (`exchange`,`name`,`pmin`,`pdigit`,`qmin`,`qdigit`) values(%(exchange)s\
-                ,%(name)s,%(pmin)s,%(pdigit)s,%(qmin)s,%qdigit))'
-            data={'exchange':exchange,'name':symbol,'pmin':pmin,'pdigit':pdigit,'qmin':qmin,'qdigit':qdigit}
-            id=SqlHandler.Insert(sql,data)
+            ele={
+                'exchange':data['exchange'],
+                'symbol':data['symbol'],
+                'pdigit':pdigit,
+                'qdigit':qdigit,
+                'pmin':pmin,
+                'qmin':qmin
+            }
+            
+            id=GridManager._add_symbol_info_2_db(ele)
             if id==-1:
                 return http_response(ADDSYMBOL,'',-1,'添加品种数据错误,数据库添加失败')
-            self.__symbol_tables.add(
+            self.__symbol_tables.append(
                 {
                     'id':id,
-                    'exchange':doc_data['exchange'],
-                    'symbol':doc_data['symbol'],
+                    'exchange':data['exchange'],
+                    'symbol':data['symbol'],
                     'pmin':pmin,
                     'pdigit':pdigit,
                     'qmin':qmin,
@@ -697,33 +702,42 @@ class GridManager(Singleton):
             
             return http_response(ADDSYMBOL,'',0,'OK',{'id':id})
         except:
+            msg=traceback.format_exc()
+            Record('add symbol'+msg,level=LOG_STORE)
             return http_response(ADDSYMBOL,'',-1,'添加品种信息错误,传输的数据格式错误')
         
         pass
+    
+    @staticmethod
+    def _add_symbol_info_2_db(data):
+        #添加数据库
+        sql='insert into `symbol_tables` (`exchange`,`name`,`pmin`,`pdigit`,`qmin`,`qdigit`) values(%(exchange)s\
+            ,%(name)s,%(pmin)s,%(pdigit)s,%(qmin)s,%(qdigit)s)'
+        data={
+            'exchange':data['exchange'],
+            'name':data['symbol'],
+            'pmin':data['pmin'],
+            'pdigit':data['pdigit'],
+            'qmin':data['qmin'],
+            'qdigit':data['qdigit']}
+        Record(msg=sql,level=LOG_STORE)
+        return SqlHandler.Insert(sql,data)
     
     #通过交易所来获取该交易所支持的所有品种数据
     def get_symbols_by_ex(self,data):
         exchange=data.get('exchange')
         if exchange==None:
             return http_response(SYMBOLS,'',-1,'获取交易所品种失败,条件错误')
-        symbols=None
+        symbollist=[]
         for i in range(0,len(self.__symbol_tables)):
             if exchange==self.__symbol_tables[i]['exchange']:
-                symbols=self._symbol_tables[i]
-                break
-                
-        if symbols ==None:
-            return http_response(SYMBOLS,'',-1,'获取交易所品种数据失败,交易所不存在')
-        else:
-            symbollist=[]
-            for i in range(0,len(symbols)):
-                symbollist.appned({
-                    'id':symbols[i]['id'],
-                    'symbol':symbols[i]['symbol'],
-                    'exchange':symbols[i]['exchange']
+                symbollist.append({
+                    'id':self.__symbol_tables[i]['id'],
+                    'symbol':self.__symbol_tables[i]['symbol'],
+                    'exchange':self.__symbol_tables[i]['exchange']
                 })
-            return http_response(SYMBOLS,'',0,'OK',symbollist)
-            pass
+        return http_response(SYMBOLS,'',0,'OK',symbollist)
+        pass
         
     #通过ID删除品种数据
     def del_symbol_by_id(self,data):
@@ -735,10 +749,12 @@ class GridManager(Singleton):
             for i in range(0,len(self.__symbol_tables)):
                 if id== self.__symbol_tables[i]['id']:
                     del self.__symbol_tables[i]
-                    
+                    GridManager.del_symbol_from_db_by_id(id)
+            return http_response(DELSYMBOL,'',0,'OK')
         except:
             msg=traceback.format_exc()
             Record(msg,level=LOG_STORE)
+            return http_response(DELSYMBOL,'',-1,'删除品种错误')
     
     @staticmethod
     def del_symbol_from_db_by_id(id):
@@ -749,13 +765,79 @@ class GridManager(Singleton):
             msg=traceback.format_exc()
             Record(msg,level=LOG_STORE)
         
-    def get_symbol_by_id(self,id):
-        if id == None or id <0:
-            return None
+    def _get_symbol_by_id(self,id):
         for i in range(0,len(self.__symbol_tables)):
-            if id== self.__symbol_tables[i]['id']:
+            if str(id)== str(self.__symbol_tables[i]['id']):
                 return  self.__symbol_tables[i]
-        return None
+            
+        sql='select * from `symbol_tables` where `id`=%(id)s'
+        flag,_,symbol_info=SqlHandler.Query(sql,{'id':id})
+        return {
+            'id':symbol_info[0]['id'],
+            'exchange':symbol_info[0]['exchange'],
+            'symbol':symbol_info[0]['name'],
+            'qmin':symbol_info[0]['qmin'],
+            'qdigit':symbol_info[0]['qdigit'],
+            'pmin':symbol_info[0]['pmin'],
+            'pdigit':symbol_info[0]['pdigit'],
+                }
+    
+    def get_symbol_by_id(self,data):
+        id=data.get('id')
+        if id==None:
+            return http_response(SYMBOL,'',-1,'传入的参数错误')
+        symbol_info=self._get_symbol_by_id(id)
+        if symbol_info!=None:
+            return http_response(SYMBOL,'',0,'OK',{
+                'id':symbol_info['id'],
+                'symbol':symbol_info['symbol'],
+                'exchange':symbol_info['exchange'],
+                'qtyRes':float(symbol_info['qmin']*(10**(-symbol_info['qdigit']))),
+                'priceRes':float(symbol_info['pmin']*(10**(-symbol_info['pdigit'])))
+            })
+        else:
+            return http_response(SYMBOL,'',-1,'没找到品种')
+    
+    def update_symbol_info_by_id(self,data):
+        id=data.get('id')
+        exchange=data.get('exchange')
+        symbol=data.get('symbol')
+        
+        if id==None or exchange==None or symbol==None:
+            return http_response(UPTSYMBOL,'',-1,'传入的参数错误')
+        qtyRes=float(data.get('qtyRes'))
+        priceRes=float(data.get('priceRes'))
+        qdigit=get_decimal_places(qtyRes)
+        qmin=int(qdigit*qtyRes)
+        pdigit=get_decimal_places(priceRes)
+        pmin=int(pdigit*priceRes)
+        for i in range(0,len(self.__symbol_tables)):
+            if self.__symbol_tables[i]['id']==id:
+                self.__symbol_tables[i]['exchange']=exchange
+                self.__symbol_tables[i]['symbol']=symbol
+                self.__symbol_tables[i]['qdigit']=qdigit
+                self.__symbol_tables[i]['qmin']=qmin
+                self.__symbol_tables[i]['pdigit']=pdigit
+                self.__symbol_tables[i]['pmin']=pmin
+                GridManager.update_db_syb_info_by_id(self.__symbol_tables[i])
+                return http_response(UPTSYMBOL,'',0,'OK')
+        ele={
+            'exchange':exchange,
+            'name':symbol,
+            'qdigit':qdigit,
+            'qmin':qmin,
+            'pdigit':pdigit,
+            'pmin':pmin
+        }
+        id=GridManager._add_symbol_info(ele)
+        ele['id']=id
+        self.__symbol_tables.append(ele)
+        return http_response(UPTSYMBOL,'',0,'OK')
+        
+    @staticmethod
+    def update_db_syb_info_by_id(data):
+        sql='update `symbol_tables` set `exchange`=%s,`name`=%s,`pmin`=%s,`pdigit`=%s,`qmin`=%s,`qdigit`=%s where `id`=%s'
+        SqlHandler.Update(sql,[(data['exchange'],data['symbol'],data['pmin'],data['pdigit'],data['qmin'],data['qdigit'],data['id'])])
 
     def check_start(self,data):
         id= data.get('id')
@@ -1078,7 +1160,7 @@ class GridManager(Singleton):
         stop=float(data['Stop'])
         tp_mode=data['TPMode']
         
-        symbol_info=self.get_symbol_by_id(symbol_id)
+        symbol_info=self._get_symbol_by_id(symbol_id)
         if symbol_info==None:
             return http_response(START,id,-1,f'品种选择错误,没有这个品种')
         
@@ -1324,6 +1406,7 @@ class GridManager(Singleton):
         pass
 
     def get_handler(self,path,clientip):     
+        Record(msg=f'get: {path}',level=LOG_STORE)
         if len(path)==0:
             return http_response(INIT,'',-1,'请求数据格式错误')
             '''
@@ -1348,6 +1431,9 @@ class GridManager(Singleton):
             elif strs[0]==SYMBOLS:
                 data=urldata_parse(strs[1])
                 return self.get_symbols_by_ex(data)
+            elif strs[0]==SYMBOL:
+                data=urldata_parse(strs[1])
+                return self.get_symbol_by_id(data)
             elif strs[0]==CHKST:
                 data=urldata_parse(strs[1])
                 return self.check_start(data)
@@ -1384,6 +1470,9 @@ class GridManager(Singleton):
             elif path==ADDSYMBOL:
                 data=json.loads(body)
                 return self.add_symbol_info(data)
+            elif path==UPTSYMBOL:
+                data=json.loads(body)
+                return self.update_symbol_info_by_id(data)
             elif path==DELSYMBOL:
                 data=json.loads(body)
                 return self.del_symbol_by_id(data)
