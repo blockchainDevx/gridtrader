@@ -119,30 +119,39 @@ class SignPolicy(IGridTrader):
             qty,price=item['TraderFunc'](side,item,self._con_data)
             
             #有止盈的执行止盈
-            if side==BUY and qty!=None and price !=None: 
-                if self._tp_data['TPMode'] == TP_FIXED: #固定止盈
-                    #根据账号的手续费率计算出买入扣费之后所得的币数量
-                    qty_m=Func_DecimalCut2(qty*(1-item['Taker']),self._con_data['QDigit'],self._con_data['QMin'])   
-                    tp_data=CalcFixedTP(qty_m,price,
-                                        self._con_data['QMin'],self._con_data['QDigit'],
-                                        self._con_data['PMin'],self._con_data['PDigit'],
-                                        self._is_master)
-                    #开启定时任务,检测止盈
-                    if len(tp_data) >0:
-                        SPQuoteMgr().addtask(FixedTPTask(item,self._con_data,tp_data))
-                        msg='开启止盈,止盈模式为固定止盈,'
-                        for index in range(0,len(tp_data)):
-                            msg=msg+'止盈点 {0},币数为 {1},价格为 {2}'.format(index,tp_data[index][0],tp_data[index][1])
-                        RecordData(msg)
-                elif self._tp_data['TPMode'] ==  TP_FLOATING:
-                    #根据账号的手续费率计算出买入扣费之后所得的币数量
-                    qty_m=Func_DecimalCut2(qty*(1-item['Taker']),self._con_data['QDigit'],self._con_data['QMin'])   
-                    # qty_m=qty*(1-item['Taker'])
-                    SPQuoteMgr().addtask(FloatingTPTask(item, 
-                                                        self._con_data,
-                                                        self._tp_data,
-                                                        qty_m,
-                                                        price))
+            if qty!=None and price !=None: 
+                if side==BUY:
+                    if self._tp_data['TPMode'] == TP_FIXED: #固定止盈
+                        #根据账号的手续费率计算出买入扣费之后所得的币数量
+                        qty_m=Func_DecimalCut2(qty*(1-item['Taker']),self._con_data['QDigit'],self._con_data['QMin'])   
+                        #标记出固定止盈点列表
+                        tp_data=CalcFixedTP(qty_m,price,
+                                            self._con_data['QMin'],self._con_data['QDigit'],
+                                            self._con_data['PMin'],self._con_data['PDigit'],
+                                            self._is_master)
+                        #开启定时任务,检测止盈
+                        if len(tp_data) >0:
+                            SPQuoteMgr().addtask(FixedTPTask(item,
+                                                            self._con_data,
+                                                            tp_data,
+                                                            qty,
+                                                            price))
+                            msg='开启止盈,止盈模式为固定止盈,'
+                            for index in range(0,len(tp_data)):
+                                msg=msg+'止盈点 {0},币数为 {1},价格为 {2}'.format(index,tp_data[index][0],tp_data[index][1])
+                            RecordData(msg)
+                    elif self._tp_data['TPMode'] ==  TP_FLOATING:
+                        #根据账号的手续费率计算出买入扣费之后所得的币数量
+                        qty_m=Func_DecimalCut2(qty*(1-item['Taker']),self._con_data['QDigit'],self._con_data['QMin'])   
+                        SPQuoteMgr().addtask(FloatingTPTask(item, 
+                                                            self._con_data,
+                                                            self._tp_data,
+                                                            qty_m,
+                                                            price))
+                    pass
+                else:
+                    #TODO删除止盈或止损
+                    SPQuoteMgr().deltask(item['TraderName'])
                     pass
         pass
         RecordData(f'------------------------------------')

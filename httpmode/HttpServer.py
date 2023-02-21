@@ -104,7 +104,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
         
     
     def do_OPTIONS(self):
-        if self.path in APISPATH:
+        if self.path in APISPATH['get'] or self.path in APISPATH['post']:
             self.send_response(200)
             self.send_header('Allow', 'GET, OPTIONS')
             #self.send_header('Access-Control-Allow-Origin', '*')

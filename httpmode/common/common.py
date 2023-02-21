@@ -25,31 +25,40 @@ ADDSYMBOL='/api/addsymbolinfo'
 DELSYMBOL='/api/delsymbolinfobyid'
 UPTSYMBOL='/api/updatesymbolinfobyid'
 
-APISPATH={
-    LOGIN,
-    CALC,
-    START,
-    STOP,
-    ADD,
-    UPDATE,
-    DEL,
-    INIT,
-    QUERY,
-    ADDAPI,
-    CHKST,
-    GROUPS,
-    ADDAPIGROUP,
-    SYMBOLS,
-    SYMBOL,
-    ADDSYMBOL,
-    DELSYMBOL,
-    UPTSYMBOL
-}
-
 #信号路径
 SIGN_UT='/api/ut'
 SIGN_STC_VALUE='/api/stc_value'
 SIGN_STC_COLOR='/api/stc_color'
+
+APISPATH={
+    'get':[
+        CALC,
+        INIT,
+        GROUPS,
+        SYMBOLS,
+        SYMBOL,
+        CHKST,
+        LOGIN,
+        
+    ],
+    'post':[
+        ADD,
+        START,
+        STOP,
+        UPDATE,
+        DEL,
+        ADDAPI,
+        ADDAPIGROUP,
+        ADDSYMBOL,
+        UPTSYMBOL,
+        DELSYMBOL,
+        SIGN_UT,
+        SIGN_STC_VALUE,
+        SIGN_STC_COLOR,
+    ],
+}
+
+
 
 #信号
 BUY_THRESHOLD=20

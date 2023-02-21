@@ -1017,6 +1017,8 @@ class GridManager(Singleton):
         else:
             return
         
+        Record(msg=f'{symbol} 触发信号,方向为 {side},信号类型为 {hour}',level=LOG_STORE)
+        
         now=time.time()
         for item in self.__trades_map.values():
             if item['gridtype']==SIGN_POLICY and item['symbol']==symbol and item['signtype']==hour:
@@ -1406,7 +1408,7 @@ class GridManager(Singleton):
         pass
 
     def get_handler(self,path,clientip):     
-        Record(msg=f'get: {path}',level=LOG_STORE)
+        #Record(msg=f'get: {path}',level=LOG_STORE)
         if len(path)==0:
             return http_response(INIT,'',-1,'请求数据格式错误')
             '''
@@ -1420,6 +1422,8 @@ class GridManager(Singleton):
         if count!=1 and count!=2 :
             return http_response(INIT,'',-1,'请求数据格式错误')
         else:
+            if strs[0] in APISPATH['get']:
+                Record(msg=f'GET: {path}',level=LOG_STORE)
             if strs[0]==CALC:
                 data=urldata_parse(strs[1])
                 return self.grid_calc(data)
@@ -1442,7 +1446,7 @@ class GridManager(Singleton):
                 return self.login_record(data,clientip)
                
     def post_handler(self,path,body):
-        if path not in  (SIGN_UT,SIGN_STC_COLOR,SIGN_STC_VALUE):
+        if path in APISPATH['post'] and path not in  (SIGN_UT,SIGN_STC_COLOR,SIGN_STC_VALUE):
            Record( 'POST:{0},{1}'.format(path,body),None,LOG_STORE)
         try:
             

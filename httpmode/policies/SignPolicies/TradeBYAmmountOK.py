@@ -7,9 +7,8 @@ def trade_by_ammount_ok(side,item,data):
     symbol=data['Symbol']
     qmin=data['QMin']
     qdigit=data['QDigit']
-    # qty_res=data['QtyRes']
+    
     stop_percent=data['StopPercent']
-    # price_res=data['PriceRes']
     pmin=data['PMin']
     pdigit=data['PDigit']
     
@@ -42,12 +41,14 @@ def trade_by_ammount_ok(side,item,data):
                 stop_price=Func_DecimalCut2(tick['last']*(1-stop_percent),pdigit,pmin)
             
             #下单
-            order,err_msg=tradehd.CreateOrder(symbol,LIMIT,BUY,qty,tick['last']) if stop_price == 0 else \
-                tradehd.CreateOrder(symbol,LIMIT,BUY,qty,tick['last'],params={
-                    'sz':qty,
-                    'slTriggerPx':stop_price,
-                    'slOrdPx':-1
-                })
+            order,err_msg=tradehd.CreateOrder(symbol,LIMIT,BUY,qty,tick['last'])
+            # order,err_msg=tradehd.CreateOrder(symbol,LIMIT,BUY,qty,tick['last']) if stop_price == 0 else \
+            #     tradehd.CreateOrder(symbol,LIMIT,BUY,qty,tick['last'])
+                # tradehd.CreateOrder(symbol,LIMIT,BUY,qty,tick['last'],params={
+                #     'sz':qty,
+                #     'slTriggerPx':stop_price,
+                #     'slOrdPx':-1
+                # })
               
             #记录下单返回数据
             msg=''
@@ -74,7 +75,7 @@ def trade_by_ammount_ok(side,item,data):
                 return None,None
             
             #查看币量
-            qty=float(balance['total'][coin])
+            qty=float(balance['free'][coin])
             qty=Func_DecimalCut2(qty,qdigit,qmin)
             #下单
             order,err_msg = tradehd.CreateOrder(symbol,MARKET,SELL,qty)

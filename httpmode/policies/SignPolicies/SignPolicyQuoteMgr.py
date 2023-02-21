@@ -32,10 +32,10 @@ class SPQuoteMgr(Singleton):
             with self._lock:
                 for taskcb,taskname in self._task_maps:
                     lis.add((thread_pool.threadPoolExecutor.submit(taskcb.run),taskname))
-            for item in lis:
-                if item[0].result() == True:
-                    self.deltask(item[1])
-            lis.clear()
+                for item in lis:
+                    if item[0].result() == True:
+                        self.deltask(item[1])
+                lis.clear()
             time.sleep(1)        
                 
     def async_starttask(self):

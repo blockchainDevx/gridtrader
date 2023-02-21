@@ -17,6 +17,7 @@ class FloatingTPTask():
         self._trader_qty=qty   #经过计算后,扣除交易所税费之后所得的币数
         self._trader_price=price    #下单时候的价格
         self._errnum=0
+        self._stop_price=Func_DecimalCut2(price*(1-condata['StopPercent']),self._pdigit,self._pmin)
         pass
     
     def __str__(self):
@@ -30,11 +31,26 @@ class FloatingTPTask():
             
             last=ticker['last']
             
-            if self._trader_price>=last: #交易价格大于等于行情价时不会计算浮盈
+            #如果止损价格大于等于最新价,触发止损
+            if greater_or_equal(self._stop_price,last):
+                order,err_msg=self._tradeobj['TradeHD'].CreateOrder(self._symbol,LIMIT,SELL,self._trader_qty,last)
+                if order!=None:
+                    msg=''
+                    if order!=None:
+                        msg='下单成功,品种为{0},数量为{1},价格为{2},委托号为{3}'.format(self._symbol,self._trader_qty,last,order['id'])
+                    else:
+                        msg=f'下单失败,原因为:{err_msg}'
+                        
+                    RecordData('{0} 触发止损 {1}'.format(self._tradehd.group_name,msg))
+            
+            #交易价格大于等于行情价时不会计算浮盈
+            if greater_or_equal(self._trader_price,last): 
                 return False
             
+            #如果最新价比历史最高价大于或等于,记录历史最高价
             if greater_or_equal(last,self._his_max_price,self._price_res): 
-                self._his_max_price=last  #如果最新价比历史最高价大于或等于,记录历史最高价
+                self._his_max_price=last  
+                return False
             else:
                 #计算出有最高价时的止盈价格
                 #公式: 百分比: 卖出价=最高价*(1-配置值)
@@ -65,14 +81,14 @@ class FloatingTPTask():
                     else:
                         msg=f'下单失败,原因为:{err_msg}'
                         
-                    RecordData('{0} 下止盈单 {1}'.format())
-                    pass
-            self._errnum=0
-            pass
+                    RecordData('{0} 触发止盈 {1}'.format(self._tradehd.group_name,msg))
+                    return True
+                self._errnum=0
+                return False
         except:
             msg=traceback.format_exc()
             RecordData(msg)
             self._errnum=self._errnum+1
             if self._errnum >=10: #连续错误10次就直接退出任务
                 return True
-        pass
+            return False
