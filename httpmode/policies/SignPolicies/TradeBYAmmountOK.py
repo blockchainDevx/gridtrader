@@ -1,3 +1,4 @@
+from sys import float_info
 from common.common import BUY, LOG_STORE,SELL,LIMIT,MARKET,RecordData,Func_DecimalCut2,Record
 from .MasterCoin import TradePairHandle
 import traceback
@@ -34,6 +35,10 @@ def trade_by_ammount_ok(side,item,data):
                 RecordData(f'账号 {tradehd.group_name} 查询 {symbol} 最新价失败')
                 return None,None
             qty= Func_DecimalCut2(amount/tick['last'],qdigit,qmin)
+            
+            if qty<=float_info.epsilon:
+                RecordData(f'账号 {tradehd.group_name} 买入失败,账号资金不足,计算买入币数太小')
+                return None,None
             
             #配置了止损比例,根据当前价计算出止损价
             stop_price=0.0
@@ -77,6 +82,11 @@ def trade_by_ammount_ok(side,item,data):
             #查看币量
             qty=float(balance['free'][coin])
             qty=Func_DecimalCut2(qty,qdigit,qmin)
+            
+            if qty<=float_info.epsilon:
+                RecordData(f'账号 {tradehd.group_name} 卖出失败,账号币数不足')
+                return None,None
+            
             #下单
             order,err_msg = tradehd.CreateOrder(symbol,MARKET,SELL,qty)
             

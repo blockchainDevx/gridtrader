@@ -1,6 +1,7 @@
 from common.common import BUY,SELL,LIMIT,RecordData,Func_DecimalCut2
 from .MasterCoin import TradePairHandle
 import traceback
+from sys import float_info
 def trade_by_ammount_gate(side,item,data):
     ammount_type=data['AmmountType']
     symbol=data['Symbol']
@@ -34,6 +35,10 @@ def trade_by_ammount_gate(side,item,data):
                 return None,None
             last=tick['last']
             qty= Func_DecimalCut2(amount/last,qdigit,qmin)
+            if qty<=float_info.epsilon:
+                RecordData(f'账号 {tradehd.group_name} 买入失败,账号资金不足,计算买入币数太小')
+                return None,None
+            
             
             #配置了止损比例,根据当前价计算出止损价
             stop_price=0.0
@@ -71,6 +76,10 @@ def trade_by_ammount_gate(side,item,data):
             #获取账号币数量        
             qty=float(balance['total'][coin])
             qty=Func_DecimalCut2(qty,qdigit,qmin)
+            
+            if qty<=float_info.epsilon:
+                RecordData(f'账号 {tradehd.group_name} 卖出失败,账号币数不足')
+                return None,None
             
             #获取币种最新价
             tick=tradehd.FetchTicker(symbol)
