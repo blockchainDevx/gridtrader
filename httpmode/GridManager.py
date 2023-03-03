@@ -1447,7 +1447,9 @@ class GridManager(Singleton):
                
     def post_handler(self,path,body):
         if path in APISPATH['post'] and path not in  (SIGN_UT,SIGN_STC_COLOR,SIGN_STC_VALUE):
-           Record( 'POST:{0},{1}'.format(path,body),None,LOG_STORE)
+            Record( 'POST:{0},{1}'.format(path,body),None,LOG_STORE)
+        # if path in APISPATH['post']:
+        #    Record( 'POST:{0},{1}'.format(path,body),None,LOG_CONSOLE)
         try:
             
             if path==ADD:

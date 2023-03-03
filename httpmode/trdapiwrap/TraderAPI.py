@@ -9,6 +9,7 @@ class TraderAPI():
         self.group_name=name
         self.ex_handler={}
         self.ex_name=''
+        self.order_ids={}
     #创建交易所句柄
     def CreateExHandler(self,ex,api):
         apidata=api['API']
@@ -95,6 +96,8 @@ class TraderAPI():
     def CreateOrder(self,symbol,type,side,qty,price=None,params={}):
         try:
             order=self.ex_handler.create_order(symbol,type,side,qty,price,params)
+            if order!=None and side==BUY:
+                self.order_ids[f'{symbol}']=order['id']
             return order,None
         except Exception as e:
             err_msg=self.err_parser(e)
@@ -131,9 +134,9 @@ class TraderAPI():
             return None
         pass
 
-    def CancelOrder(self,id):
+    def CancelOrder(self,id,symbol):
         try:
-            self.ex_handler.cancel_order(id)
+            self.ex_handler.cancel_order(id,symbol)
         except Exception as e:
             err_msg=self.err_parser(e)
             log(f'撤单失败:{err_msg}')

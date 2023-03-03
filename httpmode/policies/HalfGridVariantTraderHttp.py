@@ -394,7 +394,7 @@ class HalfGridVariantTrader(IGridTrader):
         order_list=self.trade_hd.FetchOpenOrders(self.api_symbol)
         if order_list!=None:
             for item in order_list:
-                self.trade_hd.CancelOrder(item['id'])
+                self.trade_hd.CancelOrder(item['id'],self.api_symbol)
             
         balance=self.trade_hd.FetchBalance()
         if balance!=None:
@@ -587,7 +587,7 @@ class HalfGridVariantTrader(IGridTrader):
                 if item['UpPrice'] <lower: 
                     #网格的上沿价格小于最新价,将该网格挂单撤掉并删除该网格
                     #撤单
-                    self.trade_hd.CancelOrder(item['Id'])
+                    self.trade_hd.CancelOrder(item['Id'],self.api_symbol)
                     #删除网格
                     self.grid_list.remove(item)
                 elif item['UpPrice']>lower and item['LowPrice'] <lower: 
@@ -596,7 +596,7 @@ class HalfGridVariantTrader(IGridTrader):
                     item['LowPrice']=lower
                     if item['Side']==BUY:
                         #撤单
-                        self.trade_hd.CancelOrder(item['Id'])
+                        self.trade_hd.CancelOrder(item['Id'],self.api_symbol)
         pass
     
     def update_all_order(self):

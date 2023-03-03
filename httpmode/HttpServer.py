@@ -7,8 +7,8 @@ from common.common import http_response,Record,LOG_STORE
 from common.configer.config import Config
 from common.common import  APISPATH
 
-from common.logger.Log import log
 from common.ws.WebPush import WebPush
+from policies.SignPolicies.SignPolicyQuoteMgr import SPQuoteMgr
 
 import traceback
 
@@ -136,5 +136,7 @@ if __name__ == '__main__':
     webpush=WebPush()
     webpush.init(webport)
     webpush.start()
+    SPQuoteMgr().async_starttask()
+    
     server = HTTPServer((ip, port), HTTPHandler)
     server.serve_forever()

@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import threading
 from concurrent.futures import ThreadPoolExecutor
 
 threadPoolExecutor = None

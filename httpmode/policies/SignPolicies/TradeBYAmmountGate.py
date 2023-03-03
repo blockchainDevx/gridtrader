@@ -24,8 +24,8 @@ def trade_by_ammount_gate(side,item,data):
         if side==BUY:#买
             #查看资金,如果账号有U,就买入
             amount= balance['total'][ammount_type]
-            if amount<=0:
-                RecordData(f'账号 {tradehd.group_name} 买入失败,原因是: 账号没资金')
+            if amount<=float_info.epsilon:
+                RecordData(f'{tradehd.group_name} 买入失败,原因是: 账号没资金')
                 return None,None
             
             #查看最新价,计算出合适的买入币量

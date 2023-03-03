@@ -1,9 +1,13 @@
-from common.common import LIMIT,SELL,RecordData
 from common.single import Singleton
 from common.thread_utils import thread_pool
+from common.common import Record,LOG_STORE
+from concurrent.futures import as_completed
+
 import time
 
 import threading
+
+SLEEP_MILSEC=1000
             
 class SPQuoteMgr(Singleton):
     def __init__(self):
@@ -27,16 +31,24 @@ class SPQuoteMgr(Singleton):
             del self._task_maps[taskname]
     
     def starttask(self):
-        lis=set()
+        Record('订单 止盈/止损 任务线程监控开启',level=LOG_STORE)
+        lis=[]
         while True:
+            start=time.time()
             with self._lock:
-                for taskcb,taskname in self._task_maps:
-                    lis.add((thread_pool.threadPoolExecutor.submit(taskcb.run),taskname))
-                for item in lis:
-                    if item[0].result() == True:
-                        self.deltask(item[1])
-                lis.clear()
-            time.sleep(1)        
+                for taskcb in self._task_maps.values():
+                    
+                    lis.append(thread_pool.threadPoolExecutor.submit(taskcb.run))
+            for item in as_completed(lis):
+                if item.result()[0] == True:
+                    self.deltask(item.result()[1])
+            lis.clear()
+            end=time.time()
+            interval=int(round(end-start)*1000)
+            if interval < SLEEP_MILSEC:
+                time.sleep((SLEEP_MILSEC-interval)/1000)
+            # print(f'{time.time()}')
+                   
                 
     def async_starttask(self):
         self._thread=threading.Thread(target=self.starttask)

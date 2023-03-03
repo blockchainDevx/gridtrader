@@ -187,8 +187,7 @@ def get_decimal_places(num):
 
 #浮点数的大于等于比较
 def greater_or_equal(a,b,ret=0):
-    return (a-b)>sys.float_info.epsilon or \
-        math.isclose(a,b,rel_tol=math.pow(10,-ret))
+    return (a-b)>sys.float_info.epsilon
 
 LOG_ALL=3
 LOG_CONSOLE=2
